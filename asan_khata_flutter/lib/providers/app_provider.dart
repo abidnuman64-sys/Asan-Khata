@@ -58,7 +58,13 @@ class AppProvider with ChangeNotifier {
   double get netBalance => totalYouWillGet - totalYouWillGive;
 
   // Expense & PnL Calculations
-  double get totalRevenue => 145800.0; // Base sales & revenue
+  double get totalRevenue {
+    double sum = 0;
+    for (var b in _bills) {
+      if (b.status == 'Paid') sum += b.totals.grandTotal;
+    }
+    return sum;
+  }
   double get totalExpenses {
     double sum = 0;
     for (var e in _expenses) {
@@ -92,12 +98,7 @@ class AppProvider with ChangeNotifier {
       final List decoded = jsonDecode(partiesJson);
       _parties = decoded.map((item) => Party.fromJson(item)).toList();
     } else {
-      _parties = [
-        Party(id: 1, name: "حامد (ادائیگی)", phone: "0301-8765432", type: "customer", balance: 12500, lastDate: "2026-08-10"),
-        Party(id: 2, name: "احمد کرانہ ہول سیل", phone: "0321-4455667", type: "supplier", balance: -8500, lastDate: "2026-08-09"),
-        Party(id: 3, name: "محمد علی (وصولی)", phone: "0333-9988771", type: "customer", balance: 4500, lastDate: "2026-08-08"),
-        Party(id: 4, name: "طاہر الیکٹرونکس", phone: "0345-1122334", type: "supplier", balance: -15000, lastDate: "2026-08-05"),
-      ];
+      _parties = [];
     }
 
     // Seed Transactions
@@ -106,12 +107,7 @@ class AppProvider with ChangeNotifier {
       final List decoded = jsonDecode(txJson);
       _transactions = decoded.map((item) => LedgerTransaction.fromJson(item)).toList();
     } else {
-      _transactions = [
-        LedgerTransaction(id: 101, partyId: 1, type: "gave", amount: 500, note: "حامد (ادائیگی)", date: "2026-08-10 17:10", mode: "Cash"),
-        LedgerTransaction(id: 102, partyId: 2, type: "gave", amount: 1200, note: "نیا اسٹاک (خرید)", date: "2026-08-10 15:40", mode: "EasyPaisa"),
-        LedgerTransaction(id: 103, partyId: 3, type: "got", amount: 300, note: "محمد علی (وصولی)", date: "2026-08-10 14:15", mode: "JazzCash"),
-        LedgerTransaction(id: 104, partyId: 1, type: "gave", amount: 15000, note: "5 بوریاں آٹا ترسیل", date: "2026-08-09 11:30", mode: "Cash"),
-      ];
+      _transactions = [];
     }
 
     // Seed Bills
@@ -120,34 +116,7 @@ class AppProvider with ChangeNotifier {
       final List decoded = jsonDecode(billsJson);
       _bills = decoded.map((item) => SavedBill.fromJson(item)).toList();
     } else {
-      _bills = [
-        SavedBill(
-          id: 1001,
-          partyId: 1,
-          partyName: "حامد (ادائیگی)",
-          phone: "0301-8765432",
-          items: [
-            BillItem(name: "آٹا 10 کلو (Atta 10kg)", qty: 1, price: 1500),
-            BillItem(name: "گھی 2 کلو (Ghee 2kg)", qty: 1, price: 2000),
-          ],
-          totals: BillTotals(subtotal: 3500, tax: 630, discount: 0, grandTotal: 4130),
-          status: "Unpaid",
-          date: "2026-08-10 16:30",
-        ),
-        SavedBill(
-          id: 1002,
-          partyId: 3,
-          partyName: "محمد علی (وصولی)",
-          phone: "0333-9988771",
-          items: [
-            BillItem(name: "چینی 5 کلو (Sugar 5kg)", qty: 1, price: 800),
-            BillItem(name: "چائے پتی 500 گرام", qty: 1, price: 1000),
-          ],
-          totals: BillTotals(subtotal: 1800, tax: 324, discount: 124, grandTotal: 2000),
-          status: "Paid",
-          date: "2026-08-09 14:15",
-        ),
-      ];
+      _bills = [];
     }
 
     // Seed Expenses
@@ -156,12 +125,7 @@ class AppProvider with ChangeNotifier {
       final List decoded = jsonDecode(expJson);
       _expenses = decoded.map((item) => Expense.fromJson(item)).toList();
     } else {
-      _expenses = [
-        Expense(id: 201, category: "Stock", name: "📦 اسٹاک خرید (Stock Purchase)", amount: 72000, date: "2026-08-05"),
-        Expense(id: 202, category: "Rent", name: "🏪 دکان کا کرایہ (Store Rent)", amount: 15000, date: "2026-08-01"),
-        Expense(id: 203, category: "Utilities", name: "⚡ بجلی کا بل (Electricity Bill)", amount: 7200, date: "2026-08-08"),
-        Expense(id: 204, category: "Salaries", name: "👤 ملازم کی تنخواہ (Staff Salary)", amount: 4000, date: "2026-08-02"),
-      ];
+      _expenses = [];
     }
 
     notifyListeners();

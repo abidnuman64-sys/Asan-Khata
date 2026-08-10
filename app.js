@@ -152,56 +152,11 @@ const i18n = {
   }
 };
 
-// Initial Seed Data (Authentic Pakistani Business Ledger)
-const defaultParties = [
-  { id: 1, name: "حامد (ادائیگی)", phone: "0301-8765432", type: "customer", balance: 12500, lastDate: "2026-08-10" },
-  { id: 2, name: "احمد کرانہ ہول سیل", phone: "0321-4455667", type: "supplier", balance: -8500, lastDate: "2026-08-09" },
-  { id: 3, name: "محمد علی (وصولی)", phone: "0333-9988771", type: "customer", balance: 4500, lastDate: "2026-08-08" },
-  { id: 4, name: "طاہر الیکٹرونکس", phone: "0345-1122334", type: "supplier", balance: -15000, lastDate: "2026-08-05" }
-];
-
-const defaultTransactions = [
-  { id: 101, partyId: 1, type: "gave", amount: 500, note: "حامد (ادائیگی)", date: "2026-08-10 17:10", mode: "Cash" },
-  { id: 102, partyId: 2, type: "gave", amount: 1200, note: "نیا اسٹاک (خرید)", date: "2026-08-10 15:40", mode: "EasyPaisa" },
-  { id: 103, partyId: 3, type: "got", amount: 300, note: "محمد علی (وصولی)", date: "2026-08-10 14:15", mode: "JazzCash" },
-  { id: 104, partyId: 1, type: "gave", amount: 15000, note: "5 بوریاں آٹا ترسیل", date: "2026-08-09 11:30", mode: "Cash" }
-];
-
-const defaultBills = [
-  {
-    id: 1001,
-    partyId: 1,
-    partyName: "حامد (ادائیگی)",
-    phone: "0301-8765432",
-    items: [
-      { name: "آٹا 10 کلو (Atta 10kg)", qty: 1, price: 1500 },
-      { name: "گھی 2 کلو (Ghee 2kg)", qty: 1, price: 2000 }
-    ],
-    totals: { subtotal: 3500, tax: 630, discount: 0, grandTotal: 4130 },
-    status: "Unpaid",
-    date: "2026-08-10 16:30"
-  },
-  {
-    id: 1002,
-    partyId: 3,
-    partyName: "محمد علی (وصولی)",
-    phone: "0333-9988771",
-    items: [
-      { name: "چینی 5 کلو (Sugar 5kg)", qty: 1, price: 800 },
-      { name: "چائے پتی 500 گرام", qty: 1, price: 1000 }
-    ],
-    totals: { subtotal: 1800, tax: 324, discount: 124, grandTotal: 2000 },
-    status: "Paid",
-    date: "2026-08-09 14:15"
-  }
-];
-
-const defaultExpenses = [
-  { id: 201, category: "Stock", name: "📦 اسٹاک خرید (Stock Purchase)", amount: 72000, date: "2026-08-05" },
-  { id: 202, category: "Rent", name: "🏪 دکان کا کرایہ (Store Rent)", amount: 15000, date: "2026-08-01" },
-  { id: 203, category: "Utilities", name: "⚡ بجلی کا بل (Electricity Bill)", amount: 7200, date: "2026-08-08" },
-  { id: 204, category: "Salaries", name: "👤 ملازم کی تنخواہ (Staff Salary)", amount: 4000, date: "2026-08-02" }
-];
+// Production Clean Initial Seed Data (Empty Lists)
+const defaultParties = [];
+const defaultTransactions = [];
+const defaultBills = [];
+const defaultExpenses = [];
 
 // Initialize Data & Load Preferences
 function initData() {
