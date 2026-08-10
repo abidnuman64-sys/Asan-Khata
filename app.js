@@ -264,10 +264,18 @@ function toggleDarkMode() {
 function renderApp() {
   const t = i18n[state.lang];
   
-  // Calculate Totals
-  let totalYouWillGet = 19200; // Match exact visual: Rs 19,200
-  let totalYouWillGive = 23500; // Match exact visual: Rs 23,500
-  const netBalance = -4300; // Match exact visual: -Rs 4,300
+  // Calculate Totals Dynamically
+  let totalYouWillGet = 0;
+  let totalYouWillGive = 0;
+  state.parties.forEach(p => {
+    if (p.balance > 0) {
+      totalYouWillGet += p.balance;
+    } else if (p.balance < 0) {
+      totalYouWillGive += Math.abs(p.balance);
+    }
+  });
+  const netBalance = totalYouWillGet - totalYouWillGive;
+  const isNetPositive = netBalance >= 0;
 
   // Header Title & Business Avatar
   const bizAvatar = state.business.name.charAt(0).toUpperCase();
@@ -308,20 +316,20 @@ function renderApp() {
           <div class="financial-summary-card">
             <div class="summary-net">
               <div class="net-label">${t.netBalance}</div>
-              <div class="net-amount negative" style="color:var(--gave-red-600);">
-                -Rs 4,300
+              <div class="net-amount ${isNetPositive ? 'positive' : 'negative'}" style="color:${isNetPositive ? 'var(--got-green-600)' : 'var(--gave-red-600)'};">
+                ${isNetPositive ? '+' : '-'}${formatPKR(netBalance)}
               </div>
             </div>
             <div class="summary-split">
               <!-- Right Side in RTL: You Will Get (Green) -->
               <div class="summary-box got">
                 <span class="box-label">${t.youWillGet}</span>
-                <span class="box-amount">Rs 19,200</span>
+                <span class="box-amount">${formatPKR(totalYouWillGet)}</span>
               </div>
               <!-- Left Side in RTL: You Will Give (Red) -->
               <div class="summary-box gave">
                 <span class="box-label">${t.youWillGive}</span>
-                <span class="box-amount">Rs 23,500</span>
+                <span class="box-amount">${formatPKR(totalYouWillGive)}</span>
               </div>
             </div>
           </div>
