@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ur" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>آسان کھاتہ - بل جنریٹر و تجزیہ (Bill Generator & Analytics)</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <div id="root"></div>
+  <script src="../app.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => { 
+        switchTab('precision'); 
+        state.analyticsSubTab = 'bill';
+        renderApp();
+      }, 150);
+    });
+  </script>
+</body>
+</html>
