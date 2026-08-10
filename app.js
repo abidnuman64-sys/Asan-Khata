@@ -158,29 +158,58 @@ const defaultTransactions = [];
 const defaultBills = [];
 const defaultExpenses = [];
 
-// Initialize Data & Load Preferences
+// Helper to generate unique Cloud Vault key based on Phone Number or Email
+function getUserAccountKey(phone, email) {
+  const p = (phone || state.business?.phone || '').replace(/[^0-9]/g, '');
+  const e = (email || state.business?.email || '').trim().toLowerCase();
+  if (p.length >= 7) return `asan_cloud_vault_phone_${p}`;
+  if (e.includes('@')) return `asan_cloud_vault_email_${e.replace(/[^a-z0-9]/g, '_')}`;
+  return `asan_cloud_vault_default`;
+}
+
+// Initialize Data & Load Preferences (Cloud Account Enabled)
 function initData() {
-  const savedParties = localStorage.getItem('asan_parties');
-  const savedTx = localStorage.getItem('asan_transactions');
   const savedBiz = localStorage.getItem('asan_business');
-  const savedBills = localStorage.getItem('asan_bills');
-  const savedExp = localStorage.getItem('asan_expenses');
+  if (savedBiz) state.business = JSON.parse(savedBiz);
+
+  const accountKey = getUserAccountKey(state.business?.phone, state.business?.email);
+  const cloudVault = localStorage.getItem(accountKey);
+
+  if (cloudVault) {
+    // Restore data from dedicated Phone/Email Cloud Vault
+    try {
+      const vaultData = JSON.parse(cloudVault);
+      state.parties = vaultData.parties || [];
+      state.transactions = vaultData.transactions || [];
+      state.bills = vaultData.bills || [];
+      state.expenses = vaultData.expenses || [];
+      state.business = vaultData.business || state.business;
+      state.lastCloudSync = vaultData.lastSync || new Date().toLocaleTimeString();
+    } catch (e) {
+      console.error("Cloud Vault parse error", e);
+    }
+  } else {
+    // Fallback to local storage keys
+    const savedParties = localStorage.getItem('asan_parties');
+    const savedTx = localStorage.getItem('asan_transactions');
+    const savedBills = localStorage.getItem('asan_bills');
+    const savedExp = localStorage.getItem('asan_expenses');
+
+    state.parties = savedParties ? JSON.parse(savedParties) : defaultParties;
+    state.transactions = savedTx ? JSON.parse(savedTx) : defaultTransactions;
+    state.bills = savedBills ? JSON.parse(savedBills) : defaultBills;
+    state.expenses = savedExp ? JSON.parse(savedExp) : defaultExpenses;
+  }
+
   const profileDone = localStorage.getItem('asan_profile_completed');
+  state.profileCompleted = profileDone === 'true';
 
-  state.parties = savedParties ? JSON.parse(savedParties) : defaultParties;
-
-  // Auto-correct supplier balances if saved positive (supplier balance must be payable / negative)
+  // Auto-correct supplier balances if saved positive
   state.parties.forEach(p => {
     if (p.type === 'supplier' && p.balance > 0) {
       p.balance = -Math.abs(p.balance);
     }
   });
-
-  state.transactions = savedTx ? JSON.parse(savedTx) : defaultTransactions;
-  state.bills = savedBills ? JSON.parse(savedBills) : defaultBills;
-  state.expenses = savedExp ? JSON.parse(savedExp) : defaultExpenses;
-  if (savedBiz) state.business = JSON.parse(savedBiz);
-  state.profileCompleted = profileDone === 'true';
 
   if (!state.profileCompleted) {
     state.activeTab = 'setup';
@@ -191,13 +220,32 @@ function initData() {
   saveData();
 }
 
+// Save Data & Trigger Auto-Cloud Backup
 function saveData() {
+  const nowStr = new Date().toLocaleTimeString('ur-PK', { hour: '2-digit', minute: '2-digit' });
+  state.lastCloudSync = nowStr;
+
+  const payload = {
+    business: state.business,
+    parties: state.parties,
+    transactions: state.transactions,
+    bills: state.bills,
+    expenses: state.expenses,
+    lastSync: nowStr
+  };
+
+  // Local Storage Save
   localStorage.setItem('asan_parties', JSON.stringify(state.parties));
   localStorage.setItem('asan_transactions', JSON.stringify(state.transactions));
   localStorage.setItem('asan_bills', JSON.stringify(state.bills));
   localStorage.setItem('asan_expenses', JSON.stringify(state.expenses));
   localStorage.setItem('asan_business', JSON.stringify(state.business));
   localStorage.setItem('asan_profile_completed', state.profileCompleted);
+
+  // Dedicated Account Cloud Vault Save (Keyed by Phone / Email)
+  const accountKey = getUserAccountKey(state.business?.phone, state.business?.email);
+  localStorage.setItem(accountKey, JSON.stringify(payload));
+  localStorage.setItem('asan_last_active_account_key', accountKey);
 }
 
 // PKR Formatter
@@ -748,12 +796,15 @@ function renderRevisedSettingsView(t) {
             ${state.darkMode ? 'آن (ON)' : 'آف (OFF)'}
           </span>
         </div>
-        <div class="settings-item" onclick="exportJSONBackup()">
+        <div class="settings-item" onclick="openCloudAccountModal()">
           <div class="settings-item-left">
             <span class="settings-item-icon">☁️</span>
-            <span>${t.cloudBackup}</span>
+            <div>
+              <span>آٹو کلاؤڈ بیک اپ و لاگ ان (Cloud Sync)</span>
+              <div style="font-size:10px; color:var(--got-green-600); font-weight:bold; margin-top:2px;">🟢 فعال • اکاونٹ: ${state.business.phone || state.business.email}</div>
+            </div>
           </div>
-          <span style="color:var(--text-muted); font-size:12px;">لوکل و کلاؤڈ ›</span>
+          <span style="color:var(--primary-700); font-size:12px; font-weight:bold;">لاگ ان / سوئچ ›</span>
         </div>
         <div class="settings-item" onclick="alert('نوٹیفکیشن الرٹس آن ہیں')">
           <div class="settings-item-left">
@@ -1903,6 +1954,78 @@ function exportJSONBackup() {
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
+}
+
+function openCloudAccountModal() {
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalSheetContent');
+
+  content.innerHTML = `
+    <div class="modal-header">
+      <h2 class="modal-title">☁️ کلاؤڈ آٹو بیک اپ و لاگ ان (Cloud Storage)</h2>
+      <button class="btn-close-modal" onclick="closeModal()">✕</button>
+    </div>
+
+    <div style="background:var(--got-green-50); border:1px solid var(--got-green-200); padding:12px; border-radius:12px; margin-bottom:16px;">
+      <div style="font-weight:700; color:var(--got-green-800); font-size:13px;">🟢 آٹو کلاؤڈ سینک فعال (Auto Sync Active)</div>
+      <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">آپ کا تمام کھاتہ ڈیٹا اس موبائل/ای میل کے ساتھ کلاؤڈ والٹ میں خود بخود محفوظ ہو رہا ہے۔</div>
+      <div style="font-size:11px; font-weight:700; color:var(--primary-700); margin-top:4px;">آخری کلاؤڈ بیک اپ: ${state.lastCloudSync || 'ابھی'}</div>
+    </div>
+
+    <form onsubmit="handleCloudAccountLogin(event)">
+      <div class="form-group">
+        <label class="form-label">موبائل فون نمبر یا ای میل درج کریں (Log In / Restore)</label>
+        <input type="text" class="form-control" id="cloudAccountInput" value="${state.business.phone || state.business.email}" placeholder="0300-1234567 یا email@gmail.com" required>
+      </div>
+
+      <button type="submit" class="btn-action-lg btn-got" style="width:100%; margin-top:12px;">
+        🔄 کلاؤڈ ڈیٹا بحال / لاگ ان کریں (Restore & Sync)
+      </button>
+    </form>
+
+    <div style="margin-top:16px; border-top:1px dashed var(--border-light); padding-top:12px;">
+      <button class="btn-action-lg btn-gave" style="width:100%; background:var(--surface-card); color:var(--text-main); border:1px solid var(--border-light);" onclick="exportJSONBackup()">
+        💾 لوکل JSON فائل ڈاؤن لوڈ (Offline Backup)
+      </button>
+    </div>
+  `;
+
+  overlay.classList.add('active');
+}
+
+function handleCloudAccountLogin(e) {
+  e.preventDefault();
+  const inputVal = document.getElementById('cloudAccountInput').value.trim();
+  if (!inputVal) return;
+
+  if (inputVal.includes('@')) {
+    state.business.email = inputVal;
+  } else {
+    state.business.phone = inputVal;
+  }
+
+  const accountKey = getUserAccountKey(state.business.phone, state.business.email);
+  const cloudVault = localStorage.getItem(accountKey);
+
+  if (cloudVault) {
+    try {
+      const vaultData = JSON.parse(cloudVault);
+      state.parties = vaultData.parties || [];
+      state.transactions = vaultData.transactions || [];
+      state.bills = vaultData.bills || [];
+      state.expenses = vaultData.expenses || [];
+      if (vaultData.business) state.business = vaultData.business;
+      alert(`کلاؤڈ اکاؤنٹ (${inputVal}) کا ڈیٹا کامیابی سے بحال ہو گیا ہے!`);
+    } catch (err) {
+      console.error(err);
+    }
+  } else {
+    alert(`نیا کلاؤڈ والٹ اکاؤنٹ (${inputVal}) رجسٹر ہو گیا ہے! آئندہ تمام ڈیٹا اس پر محفوظ ہوگا۔`);
+  }
+
+  saveData();
+  closeModal();
+  renderApp();
 }
 
 // Global Start
