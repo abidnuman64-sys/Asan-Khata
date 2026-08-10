@@ -169,6 +169,22 @@ function getUserAccountKey(phone, email) {
 
 // Initialize Data & Load Preferences (Cloud Account Enabled)
 function initData() {
+  // Force Production Clean Reset for Pristine Zero State
+  if (localStorage.getItem('asan_v3_production_clean_zero') !== 'true') {
+    localStorage.removeItem('asan_parties');
+    localStorage.removeItem('asan_transactions');
+    localStorage.removeItem('asan_bills');
+    localStorage.removeItem('asan_expenses');
+    localStorage.removeItem('asan_cloud_vault_default');
+    localStorage.setItem('asan_v3_production_clean_zero', 'true');
+    state.parties = [];
+    state.transactions = [];
+    state.bills = [];
+    state.expenses = [];
+    saveData();
+    return;
+  }
+
   const savedBiz = localStorage.getItem('asan_business');
   if (savedBiz) state.business = JSON.parse(savedBiz);
 
@@ -218,6 +234,18 @@ function initData() {
   }
 
   saveData();
+}
+
+function resetAllDataToZero() {
+  if (confirm("کیا آپ واقعی تمام کھاتے اور اینٹریز مٹا کر 0 سے شروعات کرنا چاہتے ہیں؟")) {
+    state.parties = [];
+    state.transactions = [];
+    state.bills = [];
+    state.expenses = [];
+    saveData();
+    alert("تمام ڈیٹا صاف کر دیا گیا ہے۔ اب تمام فہرستیں اور بیلنس 0 پر سیٹ ہیں۔");
+    renderApp();
+  }
 }
 
 // Save Data & Trigger Auto-Cloud Backup
@@ -813,12 +841,12 @@ function renderRevisedSettingsView(t) {
           </div>
           <span style="color:var(--text-muted); font-size:12px;">فعال ›</span>
         </div>
-        <div class="settings-item" onclick="setLanguage('${state.lang === 'ur' ? 'en' : 'ur'}')">
+        <div class="settings-item" onclick="resetAllDataToZero()">
           <div class="settings-item-left">
-            <span class="settings-item-icon">🌐</span>
-            <span>${t.langName}</span>
+            <span class="settings-item-icon">🧹</span>
+            <span style="color:var(--gave-red-600); font-weight:700;">تمام ڈیٹا صاف کریں (Reset All to Rs 0)</span>
           </div>
-          <span style="color:var(--text-muted); font-size:12px;">تبدیل کریں ›</span>
+          <span style="color:var(--gave-red-600); font-size:12px; font-weight:bold;">پاک کریں ›</span>
         </div>
       </div>
     </div>
