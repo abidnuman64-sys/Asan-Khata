@@ -213,6 +213,14 @@ function initData() {
   const profileDone = localStorage.getItem('asan_profile_completed');
 
   state.parties = savedParties ? JSON.parse(savedParties) : defaultParties;
+
+  // Auto-correct supplier balances if saved positive (supplier balance must be payable / negative)
+  state.parties.forEach(p => {
+    if (p.type === 'supplier' && p.balance > 0) {
+      p.balance = -Math.abs(p.balance);
+    }
+  });
+
   state.transactions = savedTx ? JSON.parse(savedTx) : defaultTransactions;
   state.bills = savedBills ? JSON.parse(savedBills) : defaultBills;
   state.expenses = savedExp ? JSON.parse(savedExp) : defaultExpenses;
@@ -1039,17 +1047,18 @@ function openAddPartyModal(type = 'customer') {
   const t = i18n[state.lang];
   const overlay = document.getElementById('modalOverlay');
   const content = document.getElementById('modalSheetContent');
+  const isSupplier = type === 'supplier';
 
   content.innerHTML = `
     <div class="modal-header">
-      <h2 class="modal-title">${t.addPartyTitle}</h2>
+      <h2 class="modal-title">${isSupplier ? t.addSupplier : t.addCustomer}</h2>
       <button class="btn-close-modal" onclick="closeModal()">✕</button>
     </div>
 
     <form onsubmit="handleSaveParty(event, '${type}')">
       <div class="form-group">
         <label class="form-label">${t.partyName}</label>
-        <input type="text" class="form-control" id="newPartyName" placeholder="مثال: محمد طارق" required>
+        <input type="text" class="form-control" id="newPartyName" placeholder="${isSupplier ? 'مثال: ایوب جان (سپلائر)' : 'مثال: محمد طارق'}" required>
       </div>
 
       <div class="form-group">
@@ -1058,11 +1067,11 @@ function openAddPartyModal(type = 'customer') {
       </div>
 
       <div class="form-group">
-        <label class="form-label">${t.openingBalance}</label>
+        <label class="form-label">${isSupplier ? 'ابتدائی بقایا / واجب الادا (آپ نے دینے ہیں PKR)' : 'ابتدائی بقایا / وصولی (آپ نے لینے ہیں PKR)'}</label>
         <input type="number" class="form-control" id="newPartyBal" placeholder="0">
       </div>
 
-      <button type="submit" class="btn-action-lg btn-got" style="width:100%; margin-top:16px;">
+      <button type="submit" class="btn-action-lg ${isSupplier ? 'btn-gave' : 'btn-got'}" style="width:100%; margin-top:16px; background:${isSupplier ? 'var(--gave-red-600)' : 'var(--got-green-600)'}; color:white;">
         💾 ${t.save}
       </button>
     </form>
@@ -1075,7 +1084,10 @@ function handleSaveParty(e, type) {
   e.preventDefault();
   const name = document.getElementById('newPartyName').value;
   const phone = document.getElementById('newPartyPhone').value;
-  const balance = parseFloat(document.getElementById('newPartyBal').value) || 0;
+  const rawBal = parseFloat(document.getElementById('newPartyBal').value) || 0;
+
+  // Supplier balance is payable (negative), Customer balance is receivable (positive)
+  const balance = (type === 'supplier' && rawBal > 0) ? -Math.abs(rawBal) : rawBal;
 
   const newP = {
     id: Date.now(),
