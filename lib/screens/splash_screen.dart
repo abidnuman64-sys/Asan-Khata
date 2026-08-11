@@ -62,27 +62,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 90,
-                      height: 90,
+                      width: 150,
+                      height: 150,
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(24),
+                        shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'AGS',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 2,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/app_logo.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const CircleAvatar(
+                            backgroundColor: AppColors.primary,
+                            radius: 75,
+                            child: Text('آسان کھاتہ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
                         ),
                       ),
                     ),

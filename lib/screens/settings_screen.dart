@@ -95,9 +95,9 @@ class SettingsScreen extends StatelessWidget {
                     Stack(
                       children: [
                         CircleAvatar(
-                          radius: 28,
-                          backgroundColor: AppColors.primary,
-                          child: const Text('AGS', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                          radius: 30,
+                          backgroundColor: Colors.transparent,
+                          backgroundImage: const AssetImage('assets/images/app_logo.png'),
                         ),
                         Positioned(
                           bottom: 0,
