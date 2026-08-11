@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -150,8 +151,8 @@ class AppProvider with ChangeNotifier {
     await prefs.setString('asan_bills', jsonEncode(_bills.map((e) => e.toJson()).toList()));
     await prefs.setString('asan_expenses', jsonEncode(_expenses.map((e) => e.toJson()).toList()));
 
-    // Firebase Cloud Vault Auto-Sync under User Phone Number
-    if (_phone.trim().isNotEmpty) {
+    // Firebase Cloud Vault Auto-Sync under User Phone Number (Mobile Native)
+    if (!kIsWeb && _phone.trim().isNotEmpty) {
       try {
         final cleanPhone = _phone.replaceAll(RegExp(r'\D'), '');
         if (cleanPhone.isNotEmpty) {
