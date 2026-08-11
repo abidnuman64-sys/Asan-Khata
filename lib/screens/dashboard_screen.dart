@@ -25,6 +25,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openAddPartyModal(BuildContext context, String type) {
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
+    final amountController = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -49,6 +50,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
+              // نام والا TextField
               TextField(
                 controller: nameController,
                 decoration: const InputDecoration(
@@ -57,6 +59,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+
+              // موبائل نمبر والا TextField
               TextField(
                 controller: phoneController,
                 keyboardType: TextInputType.phone,
@@ -65,7 +69,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
+              const SizedBox(height: 12),
+
+              // نیا فیلڈ: رقم / بقایا کے لیے (Amount / Balance)
+              TextField(
+                controller: amountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: type == 'customer' ? 'شروعاتی وصولی رقم (Initial Receivable Balance)' : 'رقم / بقایا (Amount / Balance)',
+                  border: const OutlineInputBorder(),
+                  hintText: '0',
+                ),
+              ),
               const SizedBox(height: 20),
+
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: type == 'customer' ? AppColors.gotGreen : AppColors.gaveRed,
@@ -74,10 +91,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 onPressed: () {
                   if (nameController.text.trim().isNotEmpty) {
+                    final initialAmt = double.tryParse(amountController.text.trim()) ?? 0.0;
                     Provider.of<AppProvider>(context, listen: false).addParty(
                       name: nameController.text.trim(),
                       phone: phoneController.text.trim(),
                       type: type,
+                      initialBalance: initialAmt,
                     );
                     Navigator.pop(ctx);
                   }

@@ -180,13 +180,15 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void addParty({required String name, required String phone, required String type}) {
+  void addParty({required String name, required String phone, required String type, double initialBalance = 0.0}) {
+    final double startingBalance = type == 'supplier' ? -initialBalance.abs() : initialBalance;
+
     final newParty = Party(
       id: DateTime.now().millisecondsSinceEpoch,
       name: name,
       phone: phone,
       type: type,
-      balance: 0.0,
+      balance: startingBalance,
       lastDate: DateTime.now().toString().substring(0, 10),
     );
     _parties.add(newParty);
