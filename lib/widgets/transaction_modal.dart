@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/party.dart';
 import '../providers/app_provider.dart';
-import '../theme/app_theme.dart';
 
 class TransactionModal extends StatefulWidget {
   final String defaultType; // 'gave' or 'got'
@@ -21,11 +20,14 @@ class TransactionModal extends StatefulWidget {
 }
 
 class _TransactionModalState extends State<TransactionModal> {
+  // 1. Controllers & State variables
   late String _entryType;
   late int? _selectedPartyId;
-  final _amountController = TextEditingController();
-  final _noteController = TextEditingController();
-  String _paymentMode = 'Cash';
+  final TextEditingController amountController = TextEditingController();
+  final TextEditingController noteController = TextEditingController();
+  String paymentMethod = 'نقد (Cash)'; // Default payment method
+  
+  bool get isGaveSelected => _entryType == 'gave'; // Checks if "دیے" is selected
 
   @override
   void initState() {
@@ -36,14 +38,42 @@ class _TransactionModalState extends State<TransactionModal> {
 
   @override
   void dispose() {
-    _amountController.dispose();
-    _noteController.dispose();
+    amountController.dispose();
+    noteController.dispose();
     super.dispose();
   }
 
   void _addAmount(double val) {
-    double current = double.tryParse(_amountController.text) ?? 0.0;
-    _amountController.text = (current + val).toStringAsFixed(0);
+    double current = double.tryParse(amountController.text) ?? 0.0;
+    amountController.text = (current + val).toStringAsFixed(0);
+  }
+
+  // 2. Save Transaction Function
+  void saveTransaction() async {
+    double amount = double.tryParse(amountController.text) ?? 0.0;
+    if (amount <= 0 || _selectedPartyId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('براہ کرم درست رقم درج کریں')),
+      );
+      return;
+    }
+
+    String note = noteController.text.trim();
+    final provider = Provider.of<AppProvider>(context, listen: false);
+
+    // Save transaction to local state & storage persistence
+    provider.addTransaction(
+      partyId: _selectedPartyId!,
+      type: isGaveSelected ? 'gave' : 'got', // دیے یا لیے
+      amount: amount,
+      note: note,
+      mode: paymentMethod,
+    );
+
+    // Clear fields & close dialog returning true for screen refresh
+    amountController.clear();
+    noteController.clear();
+    Navigator.pop(context, true); // True passed so calling screen refreshes
   }
 
   @override
@@ -59,8 +89,6 @@ class _TransactionModalState extends State<TransactionModal> {
       (p) => p.id == _selectedPartyId,
       orElse: () => parties.isNotEmpty ? parties.first : Party(id: 0, name: '', phone: '', type: 'customer', balance: 0, lastDate: ''),
     );
-
-    final isGave = _entryType == 'gave';
 
     return Container(
       padding: EdgeInsets.only(
@@ -83,7 +111,7 @@ class _TransactionModalState extends State<TransactionModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '${isGave ? '🔴' : '🟢'} نیا لین دین درج کریں ${widget.isLocked ? "🔒 (${selectedParty.name})" : ""}',
+                  '${isGaveSelected ? '🔴' : '🟢'} نیا لین دین درج کریں ${widget.isLocked ? "🔒 (${selectedParty.name})" : ""}',
                   style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
@@ -100,28 +128,28 @@ class _TransactionModalState extends State<TransactionModal> {
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isGave ? AppColors.gaveRed : Colors.grey.shade200,
-                      foregroundColor: isGave ? Colors.white : Colors.black87,
-                      elevation: isGave ? 2 : 0,
+                      backgroundColor: isGaveSelected ? Colors.red : Colors.grey.shade200,
+                      foregroundColor: isGaveSelected ? Colors.white : Colors.black87,
+                      elevation: isGaveSelected ? 2 : 0,
                     ),
-                    onPressed: (widget.isLocked && !isGave)
+                    onPressed: (widget.isLocked && !isGaveSelected)
                         ? null
                         : () => setState(() => _entryType = 'gave'),
-                    child: Text('🔴 دیے (قرضہ) ${widget.isLocked && isGave ? "🔒" : ""}'),
+                    child: Text('🔴 دیے (قرضہ) ${widget.isLocked && isGaveSelected ? "🔒" : ""}'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: !isGave ? AppColors.gotGreen : Colors.grey.shade200,
-                      foregroundColor: !isGave ? Colors.white : Colors.black87,
-                      elevation: !isGave ? 2 : 0,
+                      backgroundColor: !isGaveSelected ? Colors.green : Colors.grey.shade200,
+                      foregroundColor: !isGaveSelected ? Colors.white : Colors.black87,
+                      elevation: !isGaveSelected ? 2 : 0,
                     ),
-                    onPressed: (widget.isLocked && isGave)
+                    onPressed: (widget.isLocked && isGaveSelected)
                         ? null
                         : () => setState(() => _entryType = 'got'),
-                    child: Text('🟢 لیے (وصولی) ${widget.isLocked && !isGave ? "🔒" : ""}'),
+                    child: Text('🟢 لیے (وصولی) ${widget.isLocked && !isGaveSelected ? "🔒" : ""}'),
                   ),
                 ),
               ],
@@ -159,7 +187,7 @@ class _TransactionModalState extends State<TransactionModal> {
             ),
             const SizedBox(height: 6),
             TextField(
-              controller: _amountController,
+              controller: amountController,
               keyboardType: TextInputType.number,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               decoration: const InputDecoration(
@@ -181,14 +209,14 @@ class _TransactionModalState extends State<TransactionModal> {
             ),
             const SizedBox(height: 16),
 
-            // Note
+            // Note Input
             const Text(
               'تفصیل / اینٹری نوٹ',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             TextField(
-              controller: _noteController,
+              controller: noteController,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 hintText: 'مثال: 5 بوری آٹا یا نقد...',
@@ -196,66 +224,39 @@ class _TransactionModalState extends State<TransactionModal> {
             ),
             const SizedBox(height: 16),
 
-            // Payment Mode
+            // Payment Mode Selection
             const Text(
-              'ادائیگی کا طریقہ',
+              'ادائیگی کا طریقہ (Payment Method)',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
-              initialValue: _paymentMode,
+              initialValue: paymentMethod,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               ),
               items: const [
-                DropdownMenuItem(value: 'Cash', child: Text('نقد (Cash)')),
-                DropdownMenuItem(value: 'EasyPaisa', child: Text('ایزی پیسہ (EasyPaisa)')),
-                DropdownMenuItem(value: 'JazzCash', child: Text('جاز کیش (JazzCash)')),
-                DropdownMenuItem(value: 'Bank', child: Text('بینک ٹرانسفر (Bank)')),
+                DropdownMenuItem(value: 'نقد (Cash)', child: Text('نقد (Cash)')),
+                DropdownMenuItem(value: 'ایزی پیسہ (EasyPaisa)', child: Text('ایزی پیسہ (EasyPaisa)')),
+                DropdownMenuItem(value: 'جاز کیش (JazzCash)', child: Text('جاز کیش (JazzCash)')),
+                DropdownMenuItem(value: 'بینک ٹرانسفر (Bank)', child: Text('بینک ٹرانسفر (Bank)')),
               ],
-              onChanged: (val) => setState(() => _paymentMode = val!),
+              onChanged: (val) => setState(() => paymentMethod = val!),
             ),
             const SizedBox(height: 24),
 
-            // Submit Button
+            // 3. Button Code (UI):
             SizedBox(
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isGave ? AppColors.gaveRed : AppColors.gotGreen,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: isGaveSelected ? Colors.red : Colors.green,
                 ),
-                onPressed: () {
-                  final amount = double.tryParse(_amountController.text) ?? 0.0;
-                  if (amount <= 0 || _selectedPartyId == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('براہ کرم درست رقم درج کریں')),
-                    );
-                    return;
-                  }
-
-                  provider.addTransaction(
-                    partyId: _selectedPartyId!,
-                    type: _entryType,
-                    amount: amount,
-                    note: _noteController.text.trim(),
-                    mode: _paymentMode,
-                  );
-
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        isGave ? 'قرضہ اینٹری کامیابی سے درج ہو گئی ہے!' : 'وصولی اینٹری کامیابی سے درج ہو گئی ہے!',
-                      ),
-                    ),
-                  );
-                },
+                onPressed: saveTransaction,
                 child: Text(
-                  isGave ? '🔴 قرضہ محفوظ کریں' : '🟢 وصولی محفوظ کریں',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  isGaveSelected ? 'قرضہ محفوظ کریں' : 'وصولی محفوظ کریں',
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
