@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/party.dart';
 import '../models/transaction.dart';
 import '../models/bill.dart';
@@ -148,6 +149,29 @@ class AppProvider with ChangeNotifier {
     await prefs.setString('asan_transactions', jsonEncode(_transactions.map((e) => e.toJson()).toList()));
     await prefs.setString('asan_bills', jsonEncode(_bills.map((e) => e.toJson()).toList()));
     await prefs.setString('asan_expenses', jsonEncode(_expenses.map((e) => e.toJson()).toList()));
+
+    // Firebase Cloud Vault Auto-Sync under User Phone Number
+    if (_phone.trim().isNotEmpty) {
+      try {
+        final cleanPhone = _phone.replaceAll(RegExp(r'\D'), '');
+        if (cleanPhone.isNotEmpty) {
+          FirebaseFirestore.instance.collection('user_accounts').doc(cleanPhone).set({
+            'businessName': _businessName,
+            'ownerName': _ownerName,
+            'phone': _phone,
+            'address': _address,
+            'email': _email,
+            'parties': _parties.map((e) => e.toJson()).toList(),
+            'transactions': _transactions.map((e) => e.toJson()).toList(),
+            'bills': _bills.map((e) => e.toJson()).toList(),
+            'expenses': _expenses.map((e) => e.toJson()).toList(),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      } catch (e) {
+        debugPrint("Firestore sync note: $e");
+      }
+    }
   }
 
   // Mutators
