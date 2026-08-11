@@ -203,13 +203,17 @@ class AppProvider with ChangeNotifier {
     required String note,
     required String mode,
   }) {
+    final now = DateTime.now();
+    final timeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    final dateStr = "${now.toString().substring(0, 10)} $timeStr";
+
     final newTx = LedgerTransaction(
-      id: DateTime.now().millisecondsSinceEpoch,
+      id: now.millisecondsSinceEpoch,
       partyId: partyId,
       type: type,
       amount: amount,
       note: note,
-      date: "${DateTime.now().toString().substring(0, 10)} ${TimeOfDay.now().format(NavigatorKey.context!)}",
+      date: dateStr,
       mode: mode,
     );
 

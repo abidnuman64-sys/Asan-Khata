@@ -29,7 +29,7 @@ class _BillGeneratorScreenState extends State<BillGeneratorScreen> {
     return "Rs ${formatter.format(amount.abs())}";
   }
 
-  double get _subtotal {
+  double calculateSubtotal() {
     double sum = 0;
     for (var i in _currentItems) {
       sum += i.total;
@@ -37,11 +37,11 @@ class _BillGeneratorScreenState extends State<BillGeneratorScreen> {
     return sum;
   }
 
-  double get _tax => (_subtotal * 0.18).roundToDouble();
+  double get _subtotal => calculateSubtotal();
 
   double get _discount => double.tryParse(_discountController.text) ?? 0.0;
 
-  double get _grandTotal => (_subtotal + _tax - _discount) > 0 ? (_subtotal + _tax - _discount) : 0.0;
+  double get _grandTotal => (_subtotal - _discount) > 0 ? (_subtotal - _discount) : 0.0; // بغیر ٹیکس کے سیدھا حساب
 
   void _addItemRow() {
     setState(() {
@@ -127,6 +127,22 @@ class _BillGeneratorScreenState extends State<BillGeneratorScreen> {
                     const Text('آئٹمز کی فہرست (Itemized List)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
 
+                    // 1. آئٹم کے خانوں کے اوپر ہیڈرز (Labels) دینے کے لیے:
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 3, child: Text('آئٹم کا نام', style: TextStyle(fontWeight: FontWeight.bold))),
+                          SizedBox(width: 8),
+                          Expanded(flex: 2, child: Text('تعداد', style: TextStyle(fontWeight: FontWeight.bold))),
+                          SizedBox(width: 8),
+                          Expanded(flex: 2, child: Text('قیمت (Rs)', style: TextStyle(fontWeight: FontWeight.bold))),
+                          SizedBox(width: 48), // ڈیلیٹ والے بٹن کی جگہ
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+
                     // Items List Rows
                     ListView.builder(
                       shrinkWrap: true,
@@ -197,7 +213,6 @@ class _BillGeneratorScreenState extends State<BillGeneratorScreen> {
                       child: Column(
                         children: [
                           _buildTotalRow('ذیلی رقم (Subtotal):', formatPKR(_subtotal)),
-                          _buildTotalRow('ٹیکس (GST 18%):', formatPKR(_tax)),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -222,10 +237,10 @@ class _BillGeneratorScreenState extends State<BillGeneratorScreen> {
                     const SizedBox(height: 16),
 
                     // Payment Status
-                    const Text('ادائیگی کی صورتحال', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    const Text('ادائیگی کی حالت (Payment Status)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     DropdownButtonFormField<String>(
-                      initialValue: _paymentStatus,
+                      value: _paymentStatus,
                       decoration: const InputDecoration(border: OutlineInputBorder()),
                       items: const [
                         DropdownMenuItem(value: 'Paid', child: Text('🟢 ادا شدہ (Paid)')),
@@ -253,7 +268,7 @@ class _BillGeneratorScreenState extends State<BillGeneratorScreen> {
                           items: List.from(_currentItems),
                           totals: BillTotals(
                             subtotal: _subtotal,
-                            tax: _tax,
+                            tax: 0.0,
                             discount: _discount,
                             grandTotal: _grandTotal,
                           ),
