@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "136352879745",
+    "project_id": "asan-khata-e43fd",
+    "storage_bucket": "asan-khata-e43fd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:136352879745:android:ee0d15d333073ccec6e980",
+        "android_client_info": {
+          "package_name": "com.example.asankhata"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAxgVH83-QKxOXzeiO-7e4DB9DuBj-HcV4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
