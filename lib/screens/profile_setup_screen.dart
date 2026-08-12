@@ -49,26 +49,49 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     final provider = Provider.of<AppProvider>(context, listen: false);
 
-    // Save to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_profile_created', true);
-    await prefs.setBool('asan_profile_completed', true);
-    await prefs.setString('store_name', storeName);
-    await prefs.setString('asan_biz_name', storeName);
-    await prefs.setString('owner_name', ownerName);
-    await prefs.setString('asan_owner_name', ownerName);
-    await prefs.setString('store_phone', phone);
-    await prefs.setString('asan_biz_phone', phone);
-    await prefs.setString('store_email', email);
-    await prefs.setString('asan_biz_email', email);
-    await prefs.setString('store_address', address);
-    await prefs.setString('asan_biz_address', address);
-    
-    if (_selectedImage != null) {
-      await prefs.setString('store_image', _selectedImage!.path);
-      await prefs.setString('asan_store_image', _selectedImage!.path);
+    // 🔒 Check if phone number is already registered by another account
+    final bool alreadyExists = await provider.isPhoneAlreadyRegistered(phone);
+    if (alreadyExists && mounted) {
+      final bool? shouldRestore = await showDialog<bool>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('⚠️ اکاؤنٹ پہلے سے موجود ہے'),
+            content: Text('موبائل نمبر ($phone) پر پہلے سے آسان کھاتہ کا اکاؤنٹ ریکارڈ میں موجود ہے۔ کیا آپ اس نمبر کا کلاؤڈ ڈیٹا بحال کرنا چاہتے ہیں یا نیا نمبر درج کریں گے؟'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('نیا نمبر درج کریں', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('ڈیٹا بحال کریں (Restore)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (shouldRestore == true) {
+        final restored = await provider.restoreAccountFromCloud(phone);
+        if (restored && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('کامیابی! آپ کا سابقہ آسان کھاتہ ڈیٹا بحال ہو گیا ہے')),
+          );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+          );
+          return;
+        }
+      } else {
+        return; // User chooses to type a different unique phone number
+      }
     }
 
+    // Save New Unique Account
     await provider.updateProfile(
       name: storeName,
       owner: ownerName.isNotEmpty ? ownerName : 'مالک',

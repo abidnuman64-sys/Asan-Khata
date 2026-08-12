@@ -99,16 +99,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ),
                     const SizedBox(height: 20),
                     const Text(
-                      'علی جنرل اسٹور',
+                      'آسان کھاتہ',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textMainLight,
+                        color: AppColors.primary,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'آسان کھاتہ • Digital Business Ledger',
+                      'Digital Business Ledger • ڈجیٹل کھاتہ ایپ',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textMutedLight,

@@ -191,6 +191,95 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> isPhoneAlreadyRegistered(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleanPhone.isEmpty) return false;
+
+    // Check Cloud Firestore
+    if (!kIsWeb) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('user_accounts')
+            .doc(cleanPhone)
+            .get();
+        if (doc.exists && doc.data() != null) {
+          return true;
+        }
+      } catch (e) {
+        debugPrint("Firestore check error: $e");
+      }
+    }
+
+    // Check SharedPreferences registry
+    final prefs = await SharedPreferences.getInstance();
+    final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+    return registeredPhones.contains(cleanPhone);
+  }
+
+  Future<bool> restoreAccountFromCloud(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleanPhone.isEmpty) return false;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!kIsWeb) {
+      try {
+        final docSnapshot = await FirebaseFirestore.instance
+            .collection('user_accounts')
+            .doc(cleanPhone)
+            .get();
+
+        if (docSnapshot.exists && docSnapshot.data() != null) {
+          final data = docSnapshot.data()!;
+          _businessName = data['businessName'] ?? 'علی جنرل اسٹور';
+          _ownerName = data['ownerName'] ?? 'مالک';
+          _phone = data['phone'] ?? phone;
+          _address = data['address'] ?? '';
+          _email = data['email'] ?? '';
+
+          if (data['parties'] != null) {
+            _parties = (data['parties'] as List)
+                .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
+                .toList();
+          }
+
+          if (data['transactions'] != null) {
+            _transactions = (data['transactions'] as List)
+                .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
+                .toList();
+          }
+
+          if (data['bills'] != null) {
+            _bills = (data['bills'] as List)
+                .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
+                .toList();
+          }
+
+          if (data['expenses'] != null) {
+            _expenses = (data['expenses'] as List)
+                .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
+                .toList();
+          }
+
+          _isProfileSetupComplete = true;
+
+          final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+          if (!registeredPhones.contains(cleanPhone)) {
+            registeredPhones.add(cleanPhone);
+            await prefs.setStringList('asan_registered_phones', registeredPhones);
+          }
+
+          await _saveData();
+          notifyListeners();
+          return true;
+        }
+      } catch (e) {
+        debugPrint("Restore error: $e");
+      }
+    }
+    return false;
+  }
+
   Future<void> updateProfile({
     required String name,
     required String phone,
@@ -207,6 +296,7 @@ class AppProvider with ChangeNotifier {
     if (imagePath != null) _storeImagePath = imagePath;
     _isProfileSetupComplete = true;
 
+    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_profile_created', true);
     await prefs.setBool('asan_profile_completed', true);
@@ -214,6 +304,15 @@ class AppProvider with ChangeNotifier {
     await prefs.setString('asan_biz_name', name);
     await prefs.setString('store_phone', phone);
     await prefs.setString('asan_biz_phone', phone);
+
+    if (cleanPhone.isNotEmpty) {
+      final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+      if (!registeredPhones.contains(cleanPhone)) {
+        registeredPhones.add(cleanPhone);
+        await prefs.setStringList('asan_registered_phones', registeredPhones);
+      }
+    }
+
     if (imagePath != null) {
       await prefs.setString('store_image', imagePath);
       await prefs.setString('asan_store_image', imagePath);
