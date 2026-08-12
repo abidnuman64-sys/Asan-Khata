@@ -221,7 +221,7 @@ class AppProvider with ChangeNotifier {
 
     final firestore = FirebaseFirestore.instance;
 
-    // 1. Quick Parallel Firestore Doc Check (2-second timeout max)
+    // 1. Quick Parallel Firestore Doc Check (15-second timeout max for 3G networks)
     try {
       final docKeys = [clean, '0$last10', '92$last10', last10].toSet().toList();
       for (final key in docKeys) {
@@ -230,19 +230,19 @@ class AppProvider with ChangeNotifier {
               .collection('user_accounts')
               .doc(key)
               .get()
-              .timeout(const Duration(seconds: 2));
+              .timeout(const Duration(seconds: 15));
           if (doc.exists && doc.data() != null) {
             return doc.data();
           }
         } catch (_) {}
       }
 
-      // 2. Fallback query scan (max 2 seconds timeout)
+      // 2. Fallback query scan (max 15 seconds timeout)
       final querySnapshot = await firestore
           .collection('user_accounts')
           .limit(15)
           .get()
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 15));
 
       for (var doc in querySnapshot.docs) {
         final data = doc.data();

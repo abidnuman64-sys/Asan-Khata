@@ -25,11 +25,18 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     }
 
     setState(() => _isLoading = true);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('کلاؤڈ سے آپ کا پرانا ریکارڈ تلاش کیا جا رہا ہے، براہ کرم انتظار کریں...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
 
     try {
       final provider = Provider.of<AppProvider>(context, listen: false);
       final result = await provider.checkAccountByPhone(phone).timeout(
-        const Duration(seconds: 3),
+        const Duration(seconds: 15),
         onTimeout: () => {
           'success': true,
           'exists': false,
