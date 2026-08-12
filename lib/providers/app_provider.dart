@@ -321,6 +321,114 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<Map<String, dynamic>> registerUser({
+    required String storeName,
+    required String ownerName,
+    required String phone,
+    required String email,
+    required String address,
+    String? imagePath,
+  }) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleanPhone.isEmpty) {
+      return {'success': false, 'message': 'براہ کرم درست موبائل نمبر درج کریں'};
+    }
+
+    // Check if phone already registered in Firebase or local
+    final bool exists = await isPhoneAlreadyRegistered(phone);
+    if (exists) {
+      return {
+        'success': false,
+        'message': 'یہ موبائل نمبر ($phone) پہلے سے فائر بیس سرور میں رجسٹرڈ ہے! براہ کرم لاگ ان کریں۔',
+        'alreadyExists': true
+      };
+    }
+
+    await updateProfile(
+      name: storeName,
+      owner: ownerName,
+      phone: phone,
+      email: email,
+      address: address,
+      imagePath: imagePath,
+    );
+
+    return {'success': true, 'message': 'اکاؤنٹ کامیابی سے رجسٹر ہو گیا ہے'};
+  }
+
+  Future<Map<String, dynamic>> loginUser({
+    required String ownerName,
+    required String phone,
+  }) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleanPhone.isEmpty) {
+      return {'success': false, 'message': 'براہ کرم درست موبائل نمبر درج کریں'};
+    }
+
+    // Try restoring from Firebase Cloud Firestore
+    if (!kIsWeb) {
+      try {
+        final docSnapshot = await FirebaseFirestore.instance
+            .collection('user_accounts')
+            .doc(cleanPhone)
+            .get();
+
+        if (docSnapshot.exists && docSnapshot.data() != null) {
+          final data = docSnapshot.data()!;
+          final storedOwner = (data['ownerName'] ?? '').toString().trim();
+
+          if (storedOwner.isNotEmpty &&
+              ownerName.trim().isNotEmpty &&
+              !storedOwner.toLowerCase().contains(ownerName.trim().toLowerCase()) &&
+              !ownerName.trim().toLowerCase().contains(storedOwner.toLowerCase())) {
+            return {
+              'success': false,
+              'message': 'درج کردہ نام ($ownerName) فائر بیس کے رجسٹرڈ ریکارڈ ($storedOwner) سے میچ نہیں کرتا!',
+            };
+          }
+
+          final restored = await restoreAccountFromCloud(phone);
+          if (restored) {
+            return {'success': true, 'message': 'خوش آمدید! آپ کا اکاؤنٹ اور کلاؤڈ ڈیٹا کامیابی سے بحال ہو گیا ہے'};
+          }
+        }
+      } catch (e) {
+        debugPrint("Login Firestore error: $e");
+      }
+    }
+
+    // Check Local SharedPreferences if offline
+    final prefs = await SharedPreferences.getInstance();
+    final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+    final savedPhone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '';
+    final savedOwner = prefs.getString('owner_name') ?? prefs.getString('asan_owner_name') ?? '';
+
+    final cleanSaved = savedPhone.replaceAll(RegExp(r'\D'), '');
+
+    if (registeredPhones.contains(cleanPhone) || cleanSaved == cleanPhone) {
+      if (savedOwner.isNotEmpty &&
+          ownerName.trim().isNotEmpty &&
+          !savedOwner.toLowerCase().contains(ownerName.trim().toLowerCase()) &&
+          !ownerName.trim().toLowerCase().contains(savedOwner.toLowerCase())) {
+        return {
+          'success': false,
+          'message': 'درج کردہ نام ($ownerName) لوکل ریکارڈ سے میچ نہیں کرتا!',
+        };
+      }
+
+      _isProfileSetupComplete = true;
+      await prefs.setBool('is_profile_created', true);
+      await prefs.setBool('asan_profile_completed', true);
+      notifyListeners();
+      return {'success': true, 'message': 'خوش آمدید! آپ کا لاگ ان کامیاب رہا'};
+    }
+
+    return {
+      'success': false,
+      'message': 'درج کردہ فون نمبر ($phone) ڈیٹا بیس میں موجود نہیں ہے! براہ کرم پہلے نیا اکاؤنٹ رجسٹر کریں۔',
+    };
+  }
+
   void addParty({required String name, required String phone, required String type, double initialBalance = 0.0}) {
     final double startingBalance = type == 'supplier' ? -initialBalance.abs() : initialBalance;
 
