@@ -1,10 +1,27 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  Future<void> _pickProfileImage(BuildContext context, AppProvider provider) async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      await provider.updateProfile(
+        name: provider.businessName,
+        phone: provider.phone,
+        owner: provider.ownerName,
+        address: provider.address,
+        email: provider.email,
+        imagePath: image.path,
+      );
+    }
+  }
 
   void _openEditProfileModal(BuildContext context, AppProvider provider) {
     final nameController = TextEditingController(text: provider.businessName);
@@ -32,17 +49,37 @@ class SettingsScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('✏️ پروفائل ایڈٹ کریں (Edit Profile)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  '✏️ پروفائل میں ترمیم کریں',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 16),
-                TextField(controller: nameController, decoration: const InputDecoration(labelText: 'دکان کا نام (Business Name)', border: OutlineInputBorder())),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'دکان کا نام (Business Name)', border: OutlineInputBorder()),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: ownerController, decoration: const InputDecoration(labelText: 'مالک کا نام (Owner Name)', border: OutlineInputBorder())),
+                TextField(
+                  controller: ownerController,
+                  decoration: const InputDecoration(labelText: 'مالک کا نام (Owner Name)', border: OutlineInputBorder()),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: phoneController, decoration: const InputDecoration(labelText: 'موبائل نمبر (Phone)', border: OutlineInputBorder())),
+                TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'فون نمبر (Phone Number)', border: OutlineInputBorder()),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: addressController, decoration: const InputDecoration(labelText: 'پتہ (Address)', border: OutlineInputBorder())),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(labelText: 'پتہ (Address)', border: OutlineInputBorder()),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: emailController, decoration: const InputDecoration(labelText: 'ای میل (Email)', border: OutlineInputBorder())),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'ای میل (Email)', border: OutlineInputBorder()),
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
@@ -50,20 +87,19 @@ class SettingsScreen extends StatelessWidget {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  onPressed: () {
-                    provider.updateProfile(
-                      name: nameController.text.trim(),
-                      owner: ownerController.text.trim(),
-                      phone: phoneController.text.trim(),
-                      address: addressController.text.trim(),
-                      email: emailController.text.trim(),
-                    );
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('پروفائل کامیاب سے اپ ڈیٹ ہو گئی ہے!')),
-                    );
+                  onPressed: () async {
+                    if (nameController.text.trim().isNotEmpty && phoneController.text.trim().isNotEmpty) {
+                      await provider.updateProfile(
+                        name: nameController.text.trim(),
+                        owner: ownerController.text.trim(),
+                        phone: phoneController.text.trim(),
+                        address: addressController.text.trim(),
+                        email: emailController.text.trim(),
+                      );
+                      if (ctx.mounted) Navigator.pop(ctx);
+                    }
                   },
-                  child: const Text('💾 پروفائل محفوظ کریں', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: const Text('محفوظ کریں'),
                 ),
               ],
             ),
@@ -92,23 +128,28 @@ class SettingsScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 30,
-                          backgroundColor: Colors.transparent,
-                          backgroundImage: const AssetImage('assets/images/app_logo.png'),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: CircleAvatar(
-                            radius: 10,
-                            backgroundColor: AppColors.primaryDark,
-                            child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
+                    GestureDetector(
+                      onTap: () => _pickProfileImage(context, provider),
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 30,
+                            backgroundColor: Colors.grey[200],
+                            backgroundImage: provider.storeImagePath != null
+                                ? FileImage(File(provider.storeImagePath!)) as ImageProvider
+                                : const AssetImage('assets/images/app_logo.png'),
                           ),
-                        ),
-                      ],
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: CircleAvatar(
+                              radius: 10,
+                              backgroundColor: AppColors.primaryDark,
+                              child: const Icon(Icons.camera_alt, size: 10, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(width: 14),
                     Expanded(

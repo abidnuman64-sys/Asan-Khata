@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'main_navigation_screen.dart';
+import 'profile_setup_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,10 +35,19 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    Timer(const Duration(seconds: 2), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-      );
+    Timer(const Duration(seconds: 2), () async {
+      final prefs = await SharedPreferences.getInstance();
+      final bool isCreated = prefs.getBool('is_profile_created') ?? prefs.getBool('asan_profile_completed') ?? false;
+      if (!mounted) return;
+      if (isCreated) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const ProfileSetupScreen()),
+        );
+      }
     });
   }
 
@@ -78,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         child: Image.asset(
                           'assets/images/app_logo.png',
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => const CircleAvatar(
+                          errorBuilder: (_, __, _) => const CircleAvatar(
                             backgroundColor: AppColors.primary,
                             radius: 75,
                             child: Text('آسان کھاتہ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),

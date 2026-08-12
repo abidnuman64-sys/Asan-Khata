@@ -18,6 +18,7 @@ class AppProvider with ChangeNotifier {
   String _phone = '0300-1234567';
   String _address = 'مین بازار، لاہور';
   String _email = 'aligeneral@gmail.com';
+  String? _storeImagePath;
 
   List<Party> _parties = [];
   List<LedgerTransaction> _transactions = [];
@@ -34,6 +35,7 @@ class AppProvider with ChangeNotifier {
   String get phone => _phone;
   String get address => _address;
   String get email => _email;
+  String? get storeImagePath => _storeImagePath;
 
   List<Party> get parties => _parties;
   List<LedgerTransaction> get transactions => _transactions;
@@ -87,13 +89,14 @@ class AppProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool('asan_dark') ?? false;
     _lang = prefs.getString('asan_lang') ?? 'ur';
-    _isProfileSetupComplete = prefs.getBool('asan_profile_completed') ?? true;
+    _isProfileSetupComplete = prefs.getBool('is_profile_created') ?? prefs.getBool('asan_profile_completed') ?? false;
 
-    _businessName = prefs.getString('asan_biz_name') ?? 'علی جنرل اسٹور';
+    _businessName = prefs.getString('store_name') ?? prefs.getString('asan_biz_name') ?? 'علی جنرل اسٹور';
     _ownerName = prefs.getString('asan_owner_name') ?? 'محمد علی';
-    _phone = prefs.getString('asan_biz_phone') ?? '0300-1234567';
+    _phone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '0300-1234567';
     _address = prefs.getString('asan_biz_address') ?? 'مین بازار، لاہور';
     _email = prefs.getString('asan_biz_email') ?? 'aligeneral@gmail.com';
+    _storeImagePath = prefs.getString('store_image') ?? prefs.getString('asan_store_image');
 
     // Seed Parties
     final String? partiesJson = prefs.getString('asan_parties');
@@ -188,20 +191,34 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void updateProfile({
+  Future<void> updateProfile({
     required String name,
-    required String owner,
     required String phone,
-    required String address,
-    required String email,
-  }) {
+    String? owner,
+    String? address,
+    String? email,
+    String? imagePath,
+  }) async {
     _businessName = name;
-    _ownerName = owner;
     _phone = phone;
-    _address = address;
-    _email = email;
+    if (owner != null) _ownerName = owner;
+    if (address != null) _address = address;
+    if (email != null) _email = email;
+    if (imagePath != null) _storeImagePath = imagePath;
     _isProfileSetupComplete = true;
-    _saveData();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_profile_created', true);
+    await prefs.setBool('asan_profile_completed', true);
+    await prefs.setString('store_name', name);
+    await prefs.setString('asan_biz_name', name);
+    await prefs.setString('store_phone', phone);
+    await prefs.setString('asan_biz_phone', phone);
+    if (imagePath != null) {
+      await prefs.setString('store_image', imagePath);
+      await prefs.setString('asan_store_image', imagePath);
+    }
+    await _saveData();
     notifyListeners();
   }
 
