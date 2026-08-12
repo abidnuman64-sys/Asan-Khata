@@ -157,9 +157,10 @@ class AppProvider with ChangeNotifier {
     // Firebase Cloud Vault Auto-Sync under User Phone Number (Mobile Native)
     if (!kIsWeb && _phone.trim().isNotEmpty) {
       try {
-        final cleanPhone = _phone.replaceAll(RegExp(r'\D'), '');
+        final cleanPhone = _getCleanPhone(_phone);
+        final last10 = _getLast10Phone(_phone);
         if (cleanPhone.isNotEmpty) {
-          FirebaseFirestore.instance.collection('user_accounts').doc(cleanPhone).set({
+          final payload = {
             'businessName': _businessName,
             'ownerName': _ownerName,
             'phone': _phone,
@@ -170,7 +171,14 @@ class AppProvider with ChangeNotifier {
             'bills': _bills.map((e) => e.toJson()).toList(),
             'expenses': _expenses.map((e) => e.toJson()).toList(),
             'lastUpdated': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          };
+
+          await FirebaseFirestore.instance.collection('user_accounts').doc(cleanPhone).set(payload, SetOptions(merge: true));
+          if (last10.isNotEmpty) {
+            await FirebaseFirestore.instance.collection('user_accounts').doc('0$last10').set(payload, SetOptions(merge: true));
+            await FirebaseFirestore.instance.collection('user_accounts').doc(last10).set(payload, SetOptions(merge: true));
+            await FirebaseFirestore.instance.collection('user_accounts').doc('92$last10').set(payload, SetOptions(merge: true));
+          }
         }
       } catch (e) {
         debugPrint("Firestore sync note: $e");
@@ -243,7 +251,7 @@ class AppProvider with ChangeNotifier {
 
     // 4. Query collection user_accounts by phone field containing last 10 digits
     try {
-      final querySnapshot = await firestore.collection('user_accounts').limit(25).get();
+      final querySnapshot = await firestore.collection('user_accounts').limit(30).get();
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
         final docPhone = (data['phone'] ?? '').toString();
@@ -336,7 +344,7 @@ class AppProvider with ChangeNotifier {
   }) async {
     _businessName = name;
     _phone = phone;
-    if (owner != null) _ownerName = owner;
+    if (owner != null && owner.isNotEmpty) _ownerName = owner;
     if (address != null) _address = address;
     if (email != null) _email = email;
     if (imagePath != null) _storeImagePath = imagePath;
@@ -422,31 +430,11 @@ class AppProvider with ChangeNotifier {
       final storedOwner = (cloudData['ownerName'] ?? '').toString().trim();
       final storedName = (cloudData['businessName'] ?? '').toString().trim();
 
-      // Flexible name matching
-      final inputName = ownerName.trim().toLowerCase();
-      final targetOwner = storedOwner.toLowerCase();
-      final targetBiz = storedName.toLowerCase();
-
-      bool nameMatches = true;
-      if (inputName.isNotEmpty && targetOwner.isNotEmpty) {
-        nameMatches = targetOwner.contains(inputName) ||
-                      inputName.contains(targetOwner) ||
-                      targetBiz.contains(inputName);
-      }
-
-      if (!nameMatches) {
-        return {
-          'success': false,
-          'message': 'درج کردہ نام ($ownerName) کلاؤڈ ریکارڈ ($storedOwner) سے میچ نہیں کرتا!',
-        };
-      }
-
-      // Populate cloud account data into AppProvider state & local storage
-      _businessName = cloudData['businessName'] ?? 'علی جنرل اسٹور';
-      _ownerName = cloudData['ownerName'] ?? 'مالک';
+      _businessName = storedName.isNotEmpty ? storedName : (_businessName.isNotEmpty ? _businessName : 'دکان آسان کھاتہ');
+      _ownerName = storedOwner.isNotEmpty ? storedOwner : (ownerName.isNotEmpty ? ownerName : 'مالک');
       _phone = cloudData['phone'] ?? phone;
-      _address = cloudData['address'] ?? '';
-      _email = cloudData['email'] ?? '';
+      _address = cloudData['address'] ?? _address;
+      _email = cloudData['email'] ?? _email;
 
       if (cloudData['parties'] != null) {
         _parties = (cloudData['parties'] as List)
@@ -489,34 +477,6 @@ class AppProvider with ChangeNotifier {
         'success': true,
         'message': '🎉 خوش آمدید! آپ کا اکاؤنٹ اور کلاؤڈ ڈیٹا کامیابی سے لاگ ان ہو گیا ہے',
       };
-    }
-
-    // 2. Try Local Device SharedPreferences Lookup
-    final savedPhone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '';
-    final savedClean = _getCleanPhone(savedPhone);
-    final savedLast10 = _getLast10Phone(savedPhone);
-    final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
-
-    bool isLocalRegistered = (registeredPhones.any((p) => p.contains(last10))) ||
-                             (savedLast10.isNotEmpty && savedLast10 == last10);
-
-    if (isLocalRegistered || savedClean == cleanPhone) {
-      final savedOwner = prefs.getString('owner_name') ?? prefs.getString('asan_owner_name') ?? '';
-      final inputName = ownerName.trim().toLowerCase();
-      final targetOwner = savedOwner.trim().toLowerCase();
-
-      if (inputName.isNotEmpty && targetOwner.isNotEmpty && !targetOwner.contains(inputName) && !inputName.contains(targetOwner)) {
-        return {
-          'success': false,
-          'message': 'درج کردہ نام ($ownerName) لوکل ڈیوائس کے ریکارڈ ($savedOwner) سے میچ نہیں کرتا!',
-        };
-      }
-
-      _isProfileSetupComplete = true;
-      await prefs.setBool('is_profile_created', true);
-      await prefs.setBool('asan_profile_completed', true);
-      notifyListeners();
-      return {'success': true, 'message': '🎉 خوش آمدید! آپ کا لاگ ان کامیاب رہا'};
     }
 
     return {

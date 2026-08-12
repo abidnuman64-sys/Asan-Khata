@@ -67,20 +67,20 @@ class _LoginScreenState extends State<LoginScreen> {
         (route) => false,
       );
     } else {
-      // Failed login - show warning modal
+      // Failed cloud lookup - offer direct account activation & login
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('❌ لاگ ان ناکام رہا'),
-          content: Text(result['message'] ?? 'درج کردہ نمبر یا نام ڈیٹا بیس میں موجود نہیں ہے!'),
+          title: const Text('⚠️ اکاؤنٹ کلاؤڈ میں غیر دستیاب'),
+          content: Text('موبائل نمبر ($phone) پر فائر بیس میں سابقہ سائن ان نہیں ملا۔ کیا آپ اس نمبر سے ڈائریکٹ لاگ ان اور نیا اکاؤنٹ ایکٹیویٹ کرنا چاہتے ہیں؟'),
+          actionsOverflowDirection: VerticalDirection.down,
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('دوبارہ کوشش کریں', style: TextStyle(color: Colors.grey)),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            OutlinedButton(
               onPressed: () {
                 Navigator.pop(ctx);
                 Navigator.pushReplacement(
@@ -88,7 +88,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   MaterialPageRoute(builder: (_) => const RegisterScreen()),
                 );
               },
-              child: const Text('نیا اکاؤنٹ بنائیں', style: TextStyle(color: Colors.white)),
+              child: const Text('مکمل رجسٹریشن فارم'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final p = Provider.of<AppProvider>(context, listen: false);
+                await p.updateProfile(
+                  name: ownerName.isNotEmpty ? 'دکان $ownerName' : 'آسان کھاتہ اسٹور',
+                  owner: ownerName.isNotEmpty ? ownerName : 'مالک',
+                  phone: phone,
+                );
+                if (mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+                    (route) => false,
+                  );
+                }
+              },
+              child: const Text('⚡ ڈائریکٹ لاگ ان کریں', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
