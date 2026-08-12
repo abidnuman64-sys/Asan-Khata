@@ -191,91 +191,137 @@ class AppProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  String _getCleanPhone(String phone) {
+    return phone.replaceAll(RegExp(r'\D'), '');
+  }
+
+  String _getLast10Phone(String phone) {
+    final clean = _getCleanPhone(phone);
+    if (clean.length >= 10) {
+      return clean.substring(clean.length - 10);
+    }
+    return clean;
+  }
+
+  Future<Map<String, dynamic>?> _findCloudAccount(String phone) async {
+    if (kIsWeb) return null;
+    final clean = _getCleanPhone(phone);
+    final last10 = _getLast10Phone(phone);
+    if (last10.isEmpty) return null;
+
+    final firestore = FirebaseFirestore.instance;
+
+    // 1. Check exact doc ID cleanPhone
+    try {
+      final doc1 = await firestore.collection('user_accounts').doc(clean).get();
+      if (doc1.exists && doc1.data() != null) {
+        return doc1.data();
+      }
+    } catch (e) {
+      debugPrint("Doc clean query note: $e");
+    }
+
+    // 2. Check doc ID with 0 prefix (e.g. 03001234567)
+    try {
+      final doc2 = await firestore.collection('user_accounts').doc('0$last10').get();
+      if (doc2.exists && doc2.data() != null) {
+        return doc2.data();
+      }
+    } catch (e) {
+      debugPrint("Doc 0 query note: $e");
+    }
+
+    // 3. Check doc ID with 92 prefix (e.g. 923001234567)
+    try {
+      final doc3 = await firestore.collection('user_accounts').doc('92$last10').get();
+      if (doc3.exists && doc3.data() != null) {
+        return doc3.data();
+      }
+    } catch (e) {
+      debugPrint("Doc 92 query note: $e");
+    }
+
+    // 4. Query collection user_accounts by phone field containing last 10 digits
+    try {
+      final querySnapshot = await firestore.collection('user_accounts').limit(25).get();
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        final docPhone = (data['phone'] ?? '').toString();
+        final docClean = _getCleanPhone(docPhone);
+        if (docClean.contains(last10) || doc.id.contains(last10)) {
+          return data;
+        }
+      }
+    } catch (e) {
+      debugPrint("Collection scan note: $e");
+    }
+
+    return null;
+  }
+
   Future<bool> isPhoneAlreadyRegistered(String phone) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
-    if (cleanPhone.isEmpty) return false;
+    final last10 = _getLast10Phone(phone);
+    if (last10.isEmpty) return false;
 
     // Check Cloud Firestore
-    if (!kIsWeb) {
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('user_accounts')
-            .doc(cleanPhone)
-            .get();
-        if (doc.exists && doc.data() != null) {
-          return true;
-        }
-      } catch (e) {
-        debugPrint("Firestore check error: $e");
-      }
-    }
+    final cloudData = await _findCloudAccount(phone);
+    if (cloudData != null) return true;
 
     // Check SharedPreferences registry
     final prefs = await SharedPreferences.getInstance();
     final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
-    return registeredPhones.contains(cleanPhone);
+    final savedPhone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '';
+    final savedLast10 = _getLast10Phone(savedPhone);
+
+    return (registeredPhones.any((p) => p.contains(last10))) || (savedLast10.isNotEmpty && savedLast10 == last10);
   }
 
   Future<bool> restoreAccountFromCloud(String phone) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
-    if (cleanPhone.isEmpty) return false;
+    final cloudData = await _findCloudAccount(phone);
+    if (cloudData != null) {
+      _businessName = cloudData['businessName'] ?? 'علی جنرل اسٹور';
+      _ownerName = cloudData['ownerName'] ?? 'مالک';
+      _phone = cloudData['phone'] ?? phone;
+      _address = cloudData['address'] ?? '';
+      _email = cloudData['email'] ?? '';
 
-    final prefs = await SharedPreferences.getInstance();
-
-    if (!kIsWeb) {
-      try {
-        final docSnapshot = await FirebaseFirestore.instance
-            .collection('user_accounts')
-            .doc(cleanPhone)
-            .get();
-
-        if (docSnapshot.exists && docSnapshot.data() != null) {
-          final data = docSnapshot.data()!;
-          _businessName = data['businessName'] ?? 'علی جنرل اسٹور';
-          _ownerName = data['ownerName'] ?? 'مالک';
-          _phone = data['phone'] ?? phone;
-          _address = data['address'] ?? '';
-          _email = data['email'] ?? '';
-
-          if (data['parties'] != null) {
-            _parties = (data['parties'] as List)
-                .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
-                .toList();
-          }
-
-          if (data['transactions'] != null) {
-            _transactions = (data['transactions'] as List)
-                .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
-                .toList();
-          }
-
-          if (data['bills'] != null) {
-            _bills = (data['bills'] as List)
-                .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
-                .toList();
-          }
-
-          if (data['expenses'] != null) {
-            _expenses = (data['expenses'] as List)
-                .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
-                .toList();
-          }
-
-          _isProfileSetupComplete = true;
-
-          final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
-          if (!registeredPhones.contains(cleanPhone)) {
-            registeredPhones.add(cleanPhone);
-            await prefs.setStringList('asan_registered_phones', registeredPhones);
-          }
-
-          await _saveData();
-          notifyListeners();
-          return true;
-        }
-      } catch (e) {
-        debugPrint("Restore error: $e");
+      if (cloudData['parties'] != null) {
+        _parties = (cloudData['parties'] as List)
+            .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
       }
+
+      if (cloudData['transactions'] != null) {
+        _transactions = (cloudData['transactions'] as List)
+            .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (cloudData['bills'] != null) {
+        _bills = (cloudData['bills'] as List)
+            .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (cloudData['expenses'] != null) {
+        _expenses = (cloudData['expenses'] as List)
+            .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      _isProfileSetupComplete = true;
+
+      final prefs = await SharedPreferences.getInstance();
+      final cleanPhone = _getCleanPhone(phone);
+      final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+      if (!registeredPhones.contains(cleanPhone)) {
+        registeredPhones.add(cleanPhone);
+        await prefs.setStringList('asan_registered_phones', registeredPhones);
+      }
+
+      await _saveData();
+      notifyListeners();
+      return true;
     }
     return false;
   }
@@ -296,12 +342,14 @@ class AppProvider with ChangeNotifier {
     if (imagePath != null) _storeImagePath = imagePath;
     _isProfileSetupComplete = true;
 
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    final cleanPhone = _getCleanPhone(phone);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_profile_created', true);
     await prefs.setBool('asan_profile_completed', true);
     await prefs.setString('store_name', name);
     await prefs.setString('asan_biz_name', name);
+    await prefs.setString('owner_name', _ownerName);
+    await prefs.setString('asan_owner_name', _ownerName);
     await prefs.setString('store_phone', phone);
     await prefs.setString('asan_biz_phone', phone);
 
@@ -329,7 +377,7 @@ class AppProvider with ChangeNotifier {
     required String address,
     String? imagePath,
   }) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    final cleanPhone = _getCleanPhone(phone);
     if (cleanPhone.isEmpty) {
       return {'success': false, 'message': 'براہ کرم درست موبائل نمبر درج کریں'};
     }
@@ -360,59 +408,107 @@ class AppProvider with ChangeNotifier {
     required String ownerName,
     required String phone,
   }) async {
-    final cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
-    if (cleanPhone.isEmpty) {
-      return {'success': false, 'message': 'براہ کرم درست موبائل نمبر درج کریں'};
+    final cleanPhone = _getCleanPhone(phone);
+    final last10 = _getLast10Phone(phone);
+    if (last10.isEmpty) {
+      return {'success': false, 'message': 'براہ کرم درست 11 ہندسوں کا موبائل نمبر درج کریں'};
     }
 
-    // Try restoring from Firebase Cloud Firestore
-    if (!kIsWeb) {
-      try {
-        final docSnapshot = await FirebaseFirestore.instance
-            .collection('user_accounts')
-            .doc(cleanPhone)
-            .get();
-
-        if (docSnapshot.exists && docSnapshot.data() != null) {
-          final data = docSnapshot.data()!;
-          final storedOwner = (data['ownerName'] ?? '').toString().trim();
-
-          if (storedOwner.isNotEmpty &&
-              ownerName.trim().isNotEmpty &&
-              !storedOwner.toLowerCase().contains(ownerName.trim().toLowerCase()) &&
-              !ownerName.trim().toLowerCase().contains(storedOwner.toLowerCase())) {
-            return {
-              'success': false,
-              'message': 'درج کردہ نام ($ownerName) فائر بیس کے رجسٹرڈ ریکارڈ ($storedOwner) سے میچ نہیں کرتا!',
-            };
-          }
-
-          final restored = await restoreAccountFromCloud(phone);
-          if (restored) {
-            return {'success': true, 'message': 'خوش آمدید! آپ کا اکاؤنٹ اور کلاؤڈ ڈیٹا کامیابی سے بحال ہو گیا ہے'};
-          }
-        }
-      } catch (e) {
-        debugPrint("Login Firestore error: $e");
-      }
-    }
-
-    // Check Local SharedPreferences if offline
     final prefs = await SharedPreferences.getInstance();
-    final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
-    final savedPhone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '';
-    final savedOwner = prefs.getString('owner_name') ?? prefs.getString('asan_owner_name') ?? '';
 
-    final cleanSaved = savedPhone.replaceAll(RegExp(r'\D'), '');
+    // 1. Try Firebase Cloud Lookup & Restore
+    final cloudData = await _findCloudAccount(phone);
+    if (cloudData != null) {
+      final storedOwner = (cloudData['ownerName'] ?? '').toString().trim();
+      final storedName = (cloudData['businessName'] ?? '').toString().trim();
 
-    if (registeredPhones.contains(cleanPhone) || cleanSaved == cleanPhone) {
-      if (savedOwner.isNotEmpty &&
-          ownerName.trim().isNotEmpty &&
-          !savedOwner.toLowerCase().contains(ownerName.trim().toLowerCase()) &&
-          !ownerName.trim().toLowerCase().contains(savedOwner.toLowerCase())) {
+      // Flexible name matching
+      final inputName = ownerName.trim().toLowerCase();
+      final targetOwner = storedOwner.toLowerCase();
+      final targetBiz = storedName.toLowerCase();
+
+      bool nameMatches = true;
+      if (inputName.isNotEmpty && targetOwner.isNotEmpty) {
+        nameMatches = targetOwner.contains(inputName) ||
+                      inputName.contains(targetOwner) ||
+                      targetBiz.contains(inputName);
+      }
+
+      if (!nameMatches) {
         return {
           'success': false,
-          'message': 'درج کردہ نام ($ownerName) لوکل ریکارڈ سے میچ نہیں کرتا!',
+          'message': 'درج کردہ نام ($ownerName) کلاؤڈ ریکارڈ ($storedOwner) سے میچ نہیں کرتا!',
+        };
+      }
+
+      // Populate cloud account data into AppProvider state & local storage
+      _businessName = cloudData['businessName'] ?? 'علی جنرل اسٹور';
+      _ownerName = cloudData['ownerName'] ?? 'مالک';
+      _phone = cloudData['phone'] ?? phone;
+      _address = cloudData['address'] ?? '';
+      _email = cloudData['email'] ?? '';
+
+      if (cloudData['parties'] != null) {
+        _parties = (cloudData['parties'] as List)
+            .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (cloudData['transactions'] != null) {
+        _transactions = (cloudData['transactions'] as List)
+            .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (cloudData['bills'] != null) {
+        _bills = (cloudData['bills'] as List)
+            .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (cloudData['expenses'] != null) {
+        _expenses = (cloudData['expenses'] as List)
+            .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      _isProfileSetupComplete = true;
+
+      final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+      if (!registeredPhones.contains(cleanPhone)) {
+        registeredPhones.add(cleanPhone);
+        await prefs.setStringList('asan_registered_phones', registeredPhones);
+      }
+
+      await prefs.setBool('is_profile_created', true);
+      await prefs.setBool('asan_profile_completed', true);
+      await _saveData();
+      notifyListeners();
+
+      return {
+        'success': true,
+        'message': '🎉 خوش آمدید! آپ کا اکاؤنٹ اور کلاؤڈ ڈیٹا کامیابی سے لاگ ان ہو گیا ہے',
+      };
+    }
+
+    // 2. Try Local Device SharedPreferences Lookup
+    final savedPhone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '';
+    final savedClean = _getCleanPhone(savedPhone);
+    final savedLast10 = _getLast10Phone(savedPhone);
+    final registeredPhones = prefs.getStringList('asan_registered_phones') ?? [];
+
+    bool isLocalRegistered = (registeredPhones.any((p) => p.contains(last10))) ||
+                             (savedLast10.isNotEmpty && savedLast10 == last10);
+
+    if (isLocalRegistered || savedClean == cleanPhone) {
+      final savedOwner = prefs.getString('owner_name') ?? prefs.getString('asan_owner_name') ?? '';
+      final inputName = ownerName.trim().toLowerCase();
+      final targetOwner = savedOwner.trim().toLowerCase();
+
+      if (inputName.isNotEmpty && targetOwner.isNotEmpty && !targetOwner.contains(inputName) && !inputName.contains(targetOwner)) {
+        return {
+          'success': false,
+          'message': 'درج کردہ نام ($ownerName) لوکل ڈیوائس کے ریکارڈ ($savedOwner) سے میچ نہیں کرتا!',
         };
       }
 
@@ -420,12 +516,12 @@ class AppProvider with ChangeNotifier {
       await prefs.setBool('is_profile_created', true);
       await prefs.setBool('asan_profile_completed', true);
       notifyListeners();
-      return {'success': true, 'message': 'خوش آمدید! آپ کا لاگ ان کامیاب رہا'};
+      return {'success': true, 'message': '🎉 خوش آمدید! آپ کا لاگ ان کامیاب رہا'};
     }
 
     return {
       'success': false,
-      'message': 'درج کردہ فون نمبر ($phone) ڈیٹا بیس میں موجود نہیں ہے! براہ کرم پہلے نیا اکاؤنٹ رجسٹر کریں۔',
+      'message': 'درج کردہ فون نمبر ($phone) فائر بیس یا لوکل ڈیوائس میں موجود نہیں ہے! براہ کرم نیا اکاؤنٹ رجسٹر کریں۔',
     };
   }
 
