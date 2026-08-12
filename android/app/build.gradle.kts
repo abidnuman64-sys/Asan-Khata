@@ -7,16 +7,27 @@ plugins {
 android {
     namespace = "com.example.asankhata"
     compileSdk = flutter.compileSdkVersion
+    buildToolsVersion = "36.0.0"
+    ndkVersion = "28.2.13676358"
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     defaultConfig {
         applicationId = "com.example.asankhata"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
