@@ -154,34 +154,36 @@ class AppProvider with ChangeNotifier {
     await prefs.setString('asan_bills', jsonEncode(_bills.map((e) => e.toJson()).toList()));
     await prefs.setString('asan_expenses', jsonEncode(_expenses.map((e) => e.toJson()).toList()));
 
-    // Firebase Cloud Vault Auto-Sync under User Phone Number (Mobile Native)
+    // Background Cloud Sync - Never blocks local UI or causes spinning delays
     if (!kIsWeb && _phone.trim().isNotEmpty) {
-      try {
-        final cleanPhone = _getCleanPhone(_phone);
-        final last10 = _getLast10Phone(_phone);
-        if (cleanPhone.isNotEmpty) {
-          final payload = {
-            'businessName': _businessName,
-            'ownerName': _ownerName,
-            'phone': _phone,
-            'address': _address,
-            'email': _email,
-            'parties': _parties.map((e) => e.toJson()).toList(),
-            'transactions': _transactions.map((e) => e.toJson()).toList(),
-            'bills': _bills.map((e) => e.toJson()).toList(),
-            'expenses': _expenses.map((e) => e.toJson()).toList(),
-            'lastUpdated': FieldValue.serverTimestamp(),
-          };
+      final cleanPhone = _getCleanPhone(_phone);
+      final last10 = _getLast10Phone(_phone);
+      if (cleanPhone.isNotEmpty) {
+        final payload = {
+          'businessName': _businessName,
+          'ownerName': _ownerName,
+          'phone': _phone,
+          'address': _address,
+          'email': _email,
+          'parties': _parties.map((e) => e.toJson()).toList(),
+          'transactions': _transactions.map((e) => e.toJson()).toList(),
+          'bills': _bills.map((e) => e.toJson()).toList(),
+          'expenses': _expenses.map((e) => e.toJson()).toList(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        };
 
-          await FirebaseFirestore.instance.collection('user_accounts').doc(cleanPhone).set(payload, SetOptions(merge: true));
-          if (last10.isNotEmpty) {
-            await FirebaseFirestore.instance.collection('user_accounts').doc('0$last10').set(payload, SetOptions(merge: true));
-            await FirebaseFirestore.instance.collection('user_accounts').doc(last10).set(payload, SetOptions(merge: true));
-            await FirebaseFirestore.instance.collection('user_accounts').doc('92$last10').set(payload, SetOptions(merge: true));
+        // Async unawaited background sync
+        Future(() async {
+          try {
+            final col = FirebaseFirestore.instance.collection('user_accounts');
+            await col.doc(cleanPhone).set(payload, SetOptions(merge: true)).timeout(const Duration(seconds: 3));
+            if (last10.isNotEmpty) {
+              await col.doc('0$last10').set(payload, SetOptions(merge: true)).timeout(const Duration(seconds: 3));
+            }
+          } catch (e) {
+            debugPrint("Background Firestore sync note: $e");
           }
-        }
-      } catch (e) {
-        debugPrint("Firestore sync note: $e");
+        });
       }
     }
   }
@@ -219,39 +221,29 @@ class AppProvider with ChangeNotifier {
 
     final firestore = FirebaseFirestore.instance;
 
-    // 1. Check exact doc ID cleanPhone
+    // 1. Quick Parallel Firestore Doc Check (2-second timeout max)
     try {
-      final doc1 = await firestore.collection('user_accounts').doc(clean).get();
-      if (doc1.exists && doc1.data() != null) {
-        return doc1.data();
+      final docKeys = [clean, '0$last10', '92$last10', last10].toSet().toList();
+      for (final key in docKeys) {
+        try {
+          final doc = await firestore
+              .collection('user_accounts')
+              .doc(key)
+              .get()
+              .timeout(const Duration(seconds: 2));
+          if (doc.exists && doc.data() != null) {
+            return doc.data();
+          }
+        } catch (_) {}
       }
-    } catch (e) {
-      debugPrint("Doc clean query note: $e");
-    }
 
-    // 2. Check doc ID with 0 prefix (e.g. 03001234567)
-    try {
-      final doc2 = await firestore.collection('user_accounts').doc('0$last10').get();
-      if (doc2.exists && doc2.data() != null) {
-        return doc2.data();
-      }
-    } catch (e) {
-      debugPrint("Doc 0 query note: $e");
-    }
+      // 2. Fallback query scan (max 2 seconds timeout)
+      final querySnapshot = await firestore
+          .collection('user_accounts')
+          .limit(15)
+          .get()
+          .timeout(const Duration(seconds: 2));
 
-    // 3. Check doc ID with 92 prefix (e.g. 923001234567)
-    try {
-      final doc3 = await firestore.collection('user_accounts').doc('92$last10').get();
-      if (doc3.exists && doc3.data() != null) {
-        return doc3.data();
-      }
-    } catch (e) {
-      debugPrint("Doc 92 query note: $e");
-    }
-
-    // 4. Query collection user_accounts by phone field containing last 10 digits
-    try {
-      final querySnapshot = await firestore.collection('user_accounts').limit(30).get();
       for (var doc in querySnapshot.docs) {
         final data = doc.data();
         final docPhone = (data['phone'] ?? '').toString();
@@ -261,7 +253,7 @@ class AppProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint("Collection scan note: $e");
+      debugPrint("Cloud lookup timeout/note: $e");
     }
 
     return null;

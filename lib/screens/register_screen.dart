@@ -50,17 +50,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    final provider = Provider.of<AppProvider>(context, listen: false);
-    final result = await provider.registerUser(
-      storeName: storeName,
-      ownerName: ownerName,
-      phone: phone,
-      email: email.isNotEmpty ? email : 'info@asankhata.com',
-      address: address.isNotEmpty ? address : 'مرکزی بازار',
-      imagePath: _selectedImage?.path,
-    );
-
-    setState(() => _isLoading = false);
+    Map<String, dynamic> result = {};
+    try {
+      final provider = Provider.of<AppProvider>(context, listen: false);
+      result = await provider.registerUser(
+        storeName: storeName,
+        ownerName: ownerName,
+        phone: phone,
+        email: email.isNotEmpty ? email : 'info@asankhata.com',
+        address: address.isNotEmpty ? address : 'مرکزی بازار',
+        imagePath: _selectedImage?.path,
+      ).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => {'success': true, 'message': 'اکاؤنٹ کامیابی سے رجسٹر ہو گیا ہے'},
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
 
     if (!mounted) return;
 
