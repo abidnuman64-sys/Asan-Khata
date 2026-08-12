@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'auth_selection_screen.dart';
 import 'main_navigation_screen.dart';
+import 'phone_auth_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         );
       } else {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AuthSelectionScreen()),
+          MaterialPageRoute(builder: (_) => const PhoneAuthScreen()),
         );
       }
     });

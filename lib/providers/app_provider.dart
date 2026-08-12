@@ -276,6 +276,105 @@ class AppProvider with ChangeNotifier {
     return (registeredPhones.any((p) => p.contains(last10))) || (savedLast10.isNotEmpty && savedLast10 == last10);
   }
 
+  Future<Map<String, dynamic>> checkAccountByPhone(String phone) async {
+    final cleanPhone = _getCleanPhone(phone);
+    final last10 = _getLast10Phone(phone);
+
+    if (last10.isEmpty || cleanPhone.length < 10) {
+      return {'success': false, 'message': 'براہ کرم درست 11 ہندسوں کا موبائل نمبر درج کریں'};
+    }
+
+    // 1. Check Cloud Firestore
+    final cloudData = await _findCloudAccount(phone);
+    if (cloudData != null) {
+      return {
+        'success': true,
+        'exists': true,
+        'isCloud': true,
+        'storeName': cloudData['businessName'] ?? '',
+        'ownerName': cloudData['ownerName'] ?? '',
+        'phone': cloudData['phone'] ?? phone,
+        'email': cloudData['email'] ?? '',
+        'address': cloudData['address'] ?? '',
+        'cloudData': cloudData,
+      };
+    }
+
+    // 2. Check SharedPreferences local DB
+    final prefs = await SharedPreferences.getInstance();
+    final savedPhone = prefs.getString('store_phone') ?? prefs.getString('asan_biz_phone') ?? '';
+    final savedLast10 = _getLast10Phone(savedPhone);
+
+    if (savedLast10.isNotEmpty && savedLast10 == last10) {
+      return {
+        'success': true,
+        'exists': true,
+        'isCloud': false,
+        'storeName': prefs.getString('store_name') ?? prefs.getString('asan_biz_name') ?? '',
+        'ownerName': prefs.getString('owner_name') ?? prefs.getString('asan_owner_name') ?? '',
+        'phone': savedPhone,
+        'email': prefs.getString('store_email') ?? prefs.getString('asan_biz_email') ?? '',
+        'address': prefs.getString('store_address') ?? prefs.getString('asan_biz_address') ?? '',
+      };
+    }
+
+    // 3. Brand New Account
+    return {
+      'success': true,
+      'exists': false,
+      'phone': phone,
+    };
+  }
+
+  Future<void> confirmExistingAccount(Map<String, dynamic> accountData) async {
+    if (accountData['isCloud'] == true && accountData['cloudData'] != null) {
+      final data = accountData['cloudData'] as Map<String, dynamic>;
+      _businessName = data['businessName'] ?? accountData['storeName'] ?? 'علی جنرل اسٹور';
+      _ownerName = data['ownerName'] ?? accountData['ownerName'] ?? 'مالک';
+      _phone = data['phone'] ?? accountData['phone'] ?? '';
+      _address = data['address'] ?? accountData['address'] ?? '';
+      _email = data['email'] ?? accountData['email'] ?? '';
+
+      if (data['parties'] != null) {
+        _parties = (data['parties'] as List)
+            .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (data['transactions'] != null) {
+        _transactions = (data['transactions'] as List)
+            .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (data['bills'] != null) {
+        _bills = (data['bills'] as List)
+            .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+
+      if (data['expenses'] != null) {
+        _expenses = (data['expenses'] as List)
+            .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+    } else {
+      _businessName = accountData['storeName'] ?? _businessName;
+      _ownerName = accountData['ownerName'] ?? _ownerName;
+      _phone = accountData['phone'] ?? _phone;
+      _address = accountData['address'] ?? _address;
+      _email = accountData['email'] ?? _email;
+    }
+
+    _isProfileSetupComplete = true;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_profile_created', true);
+    await prefs.setBool('asan_profile_completed', true);
+    await _saveData();
+    notifyListeners();
+  }
+
   Future<bool> restoreAccountFromCloud(String phone) async {
     final cloudData = await _findCloudAccount(phone);
     if (cloudData != null) {

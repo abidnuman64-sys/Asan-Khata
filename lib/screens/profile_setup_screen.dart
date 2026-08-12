@@ -8,21 +8,43 @@ import '../theme/app_theme.dart';
 import 'main_navigation_screen.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
-  const ProfileSetupScreen({super.key});
+  final Map<String, dynamic>? accountData;
+  final String? initialPhone;
+
+  const ProfileSetupScreen({
+    super.key,
+    this.accountData,
+    this.initialPhone,
+  });
 
   @override
   State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
-  final TextEditingController storeNameController = TextEditingController();
-  final TextEditingController ownerNameController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController addressController = TextEditingController();
+  late TextEditingController storeNameController;
+  late TextEditingController ownerNameController;
+  late TextEditingController phoneController;
+  late TextEditingController emailController;
+  late TextEditingController addressController;
 
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isExistingAccount = false;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final data = widget.accountData ?? {};
+    _isExistingAccount = data['exists'] == true;
+
+    storeNameController = TextEditingController(text: data['storeName'] ?? '');
+    ownerNameController = TextEditingController(text: data['ownerName'] ?? '');
+    phoneController = TextEditingController(text: widget.initialPhone ?? data['phone'] ?? '');
+    emailController = TextEditingController(text: data['email'] ?? '');
+    addressController = TextEditingController(text: data['address'] ?? '');
+  }
 
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
@@ -33,81 +55,62 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
   }
 
-  Future<void> _saveProfile() async {
+  Future<void> _handleSaveOrConfirm() async {
     final storeName = storeNameController.text.trim();
     final ownerName = ownerNameController.text.trim();
     final phone = phoneController.text.trim();
     final email = emailController.text.trim();
     final address = addressController.text.trim();
 
-    if (storeName.isEmpty || phone.isEmpty) {
+    if (phone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('براہ کرم دکان کا نام اور موبائل نمبر درج کریں')),
+        const SnackBar(content: Text('براہ کرم اپنا موبائل نمبر درج کریں')),
       );
       return;
     }
 
-    final provider = Provider.of<AppProvider>(context, listen: false);
-
-    // 🔒 Check if phone number is already registered by another account
-    final bool alreadyExists = await provider.isPhoneAlreadyRegistered(phone);
-    if (alreadyExists && mounted) {
-      final bool? shouldRestore = await showDialog<bool>(
-        context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('⚠️ اکاؤنٹ پہلے سے موجود ہے'),
-            content: Text('موبائل نمبر ($phone) پر پہلے سے آسان کھاتہ کا اکاؤنٹ ریکارڈ میں موجود ہے۔ کیا آپ اس نمبر کا کلاؤڈ ڈیٹا بحال کرنا چاہتے ہیں یا نیا نمبر درج کریں گے؟'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('نیا نمبر درج کریں', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('ڈیٹا بحال کریں (Restore)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          );
-        },
+    if (!_isExistingAccount && (storeName.isEmpty || ownerName.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('براہ کرم دکان کا نام اور اپنا نام درج کریں')),
       );
-
-      if (shouldRestore == true) {
-        final restored = await provider.restoreAccountFromCloud(phone);
-        if (restored && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('کامیابی! آپ کا سابقہ آسان کھاتہ ڈیٹا بحال ہو گیا ہے')),
-          );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-          );
-          return;
-        }
-      } else {
-        return; // User chooses to type a different unique phone number
-      }
+      return;
     }
 
-    // Save New Unique Account
-    await provider.updateProfile(
-      name: storeName,
-      owner: ownerName.isNotEmpty ? ownerName : 'مالک',
-      phone: phone,
-      email: email.isNotEmpty ? email : 'info@asankhata.com',
-      address: address.isNotEmpty ? address : 'مرکزی بازار',
-      imagePath: _selectedImage?.path,
-    );
+    setState(() => _isLoading = true);
 
-    if (!mounted) return;
+    try {
+      final provider = Provider.of<AppProvider>(context, listen: false);
 
-    // Navigate to main app home screen
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-    );
+      if (_isExistingAccount && widget.accountData != null) {
+        await provider.confirmExistingAccount(widget.accountData!);
+      } else {
+        await provider.updateProfile(
+          name: storeName.isNotEmpty ? storeName : 'دکان آسان کھاتہ',
+          owner: ownerName.isNotEmpty ? ownerName : 'مالک',
+          phone: phone,
+          email: email.isNotEmpty ? email : 'info@asankhata.com',
+          address: address.isNotEmpty ? address : 'مرکزی بازار',
+          imagePath: _selectedImage?.path,
+        );
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isExistingAccount ? '🎉 خوش آمدید! آپ کا کھاتہ کھل گیا ہے' : '🎉 آپ کی پروفائل محفوظ ہو گئی ہے'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+        (route) => false,
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -115,7 +118,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('پروفائل ترتیبات (Profile Setup)'),
+        title: Text(_isExistingAccount ? '🎉 پروفائل مل گئی (Account Found)' : '📝 پروفائل بنائیں (Profile Setup)'),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -124,24 +127,43 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const SizedBox(height: 10),
-            const Text(
-              'خوش آمدید! آسان کھاتہ',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'براہ کرم اپنی دکان اور پروفائل کی معلومات درج کریں',
-              style: TextStyle(fontSize: 14, color: AppColors.textMutedLight),
+
+            // Banner Notification
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: _isExistingAccount ? Colors.green[50] : Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _isExistingAccount ? Colors.green : Colors.blue),
+              ),
+              child: Row(
+                children: [
+                  Icon(_isExistingAccount ? Icons.check_circle : Icons.edit, color: _isExistingAccount ? Colors.green : Colors.blue),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _isExistingAccount
+                          ? 'پہلے سے موجود اکاؤنٹ مل گیا ہے! ڈیٹا بحال کرنے کے لیے نیچے بٹن دبائیں۔'
+                          : 'نیا اکاؤنٹ۔ براہ کرم اپنی دکان اور پروفائل کی معلومات درج کریں۔',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: _isExistingAccount ? Colors.green[900] : Colors.blue[900],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
-            
-            // Profile Picture CircleAvatar with ImagePicker Camera Button
+
+            // Profile Picture CircleAvatar with ImagePicker
             GestureDetector(
               onTap: _pickImage,
               child: Stack(
                 children: [
                   CircleAvatar(
-                    radius: 50,
+                    radius: 48,
                     backgroundColor: Colors.grey[200],
                     backgroundImage: _selectedImage != null
                         ? FileImage(_selectedImage!) as ImageProvider
@@ -151,12 +173,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     bottom: 0,
                     right: 0,
                     child: Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(7),
                       decoration: const BoxDecoration(
                         color: Colors.green,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                      child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                     ),
                   ),
                 ],
@@ -164,11 +186,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 24),
 
-            // 1. دکان کا نام (Store / Business Name)
+            // 1. دکان کا نام (Store Name)
             TextField(
               controller: storeNameController,
               decoration: const InputDecoration(
-                labelText: '1. دکان کا نام (Store / Business Name)',
+                labelText: '1. دکان کا نام (Store / Business Name) *',
                 hintText: 'مثلاً: علی جنرل اسٹور',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.store),
@@ -176,11 +198,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 2. یوزر کا نام (User / Owner Name)
+            // 2. یوزر/اونر کا نام (User Name)
             TextField(
               controller: ownerNameController,
               decoration: const InputDecoration(
-                labelText: '2. یوزر کا نام (User / Owner Name)',
+                labelText: '2. یوزر / اونر کا نام (User Name) *',
                 hintText: 'مثلاً: محمد علی',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.person),
@@ -188,20 +210,23 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 3. موبائل نمبر (Phone Number)
+            // 3. موبائل نمبر (Phone Number - Fixed)
             TextField(
               controller: phoneController,
               keyboardType: TextInputType.phone,
+              readOnly: true,
+              style: const TextStyle(fontWeight: FontWeight.bold),
               decoration: const InputDecoration(
                 labelText: '3. موبائل نمبر (Phone Number)',
-                hintText: 'مثلاً: 0300-1234567',
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.phone),
+                prefixIcon: Icon(Icons.phone, color: Colors.green),
+                filled: true,
+                fillColor: Color(0xFFF5F5F5),
               ),
             ),
             const SizedBox(height: 14),
 
-            // 4. ای میل ایڈریس (Email Address)
+            // 4. ای میل ایڈریس
             TextField(
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
@@ -214,7 +239,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 14),
 
-            // 5. دکان کا پتہ (Store Address)
+            // 5. دکان کا پتہ
             TextField(
               controller: addressController,
               maxLines: 2,
@@ -227,18 +252,21 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ),
             const SizedBox(height: 28),
 
-            // Save & Login Button
+            // Main WhatsApp-Style Submit Button
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 minimumSize: const Size(double.infinity, 54),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 2,
               ),
-              onPressed: _saveProfile,
-              child: const Text(
-                'محفوظ کریں اور لاگ ان کریں',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              onPressed: _isLoading ? null : _handleSaveOrConfirm,
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : Text(
+                      _isExistingAccount ? '🟢 کھاتہ کھولیں (Open Khata App)' : '🟢 پروفائل محفوظ کریں اور کھاتہ شروع کریں',
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
             ),
             const SizedBox(height: 20),
           ],
