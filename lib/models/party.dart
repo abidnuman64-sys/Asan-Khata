@@ -16,13 +16,29 @@ class Party {
   });
 
   factory Party.fromJson(Map<String, dynamic> json) {
+    int parsedId = 0;
+    if (json['id'] is int) {
+      parsedId = json['id'];
+    } else if (json['id'] != null) {
+      parsedId = int.tryParse(json['id'].toString()) ?? DateTime.now().millisecondsSinceEpoch;
+    } else {
+      parsedId = DateTime.now().millisecondsSinceEpoch;
+    }
+
+    double parsedBalance = 0.0;
+    if (json['balance'] is num) {
+      parsedBalance = (json['balance'] as num).toDouble();
+    } else if (json['balance'] != null) {
+      parsedBalance = double.tryParse(json['balance'].toString()) ?? 0.0;
+    }
+
     return Party(
-      id: json['id'],
-      name: json['name'],
-      phone: json['phone'],
-      type: json['type'],
-      balance: (json['balance'] as num).toDouble(),
-      lastDate: json['lastDate'],
+      id: parsedId,
+      name: json['name']?.toString() ?? 'نامعلوم گاہک',
+      phone: json['phone']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'customer',
+      balance: parsedBalance,
+      lastDate: json['lastDate']?.toString() ?? DateTime.now().toString().substring(0, 10),
     );
   }
 

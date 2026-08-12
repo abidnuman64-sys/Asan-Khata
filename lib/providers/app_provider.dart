@@ -336,27 +336,43 @@ class AppProvider with ChangeNotifier {
       _email = data['email'] ?? accountData['email'] ?? '';
 
       if (data['parties'] != null) {
-        _parties = (data['parties'] as List)
-            .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
+        try {
+          _parties = (data['parties'] as List)
+              .map((item) => Party.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        } catch (e) {
+          debugPrint("Parties restore note: $e");
+        }
       }
 
       if (data['transactions'] != null) {
-        _transactions = (data['transactions'] as List)
-            .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
+        try {
+          _transactions = (data['transactions'] as List)
+              .map((item) => LedgerTransaction.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        } catch (e) {
+          debugPrint("Transactions restore note: $e");
+        }
       }
 
       if (data['bills'] != null) {
-        _bills = (data['bills'] as List)
-            .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
+        try {
+          _bills = (data['bills'] as List)
+              .map((item) => SavedBill.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        } catch (e) {
+          debugPrint("Bills restore note: $e");
+        }
       }
 
       if (data['expenses'] != null) {
-        _expenses = (data['expenses'] as List)
-            .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
-            .toList();
+        try {
+          _expenses = (data['expenses'] as List)
+              .map((item) => Expense.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        } catch (e) {
+          debugPrint("Expenses restore note: $e");
+        }
       }
     } else {
       _businessName = accountData['storeName'] ?? _businessName;
